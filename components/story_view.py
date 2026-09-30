@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+from components.ui import render_page_header, render_tip
 from models.story import PaperSource, PaperStory, ParsedPaper
 from services.llm_provider import (
     DEFAULT_CLAUDE_CODE_MODEL,
@@ -167,14 +168,14 @@ def _handle_library_source(source: PaperSource) -> None:
 
     col_a, col_b = st.columns(2)
     abstract_disabled = not bool(source.abstract.strip())
-    if col_a.button("Generate from abstract", use_container_width=True, disabled=abstract_disabled, key="story_abstract_generate"):
+    if col_a.button("Quick story · abstract", use_container_width=True, disabled=abstract_disabled, key="story_abstract_generate"):
         try:
             _generate(parsed_from_abstract(source.model_copy(deep=True)))
         except (PDFParseError, LLMProviderError, StoryGenerationError) as exc:
             st.error(str(exc))
 
     full_disabled = not bool(source.pdf_url.strip())
-    if col_b.button("Use full paper", use_container_width=True, disabled=full_disabled, key="story_full_generate"):
+    if col_b.button("Deeper story · full paper", use_container_width=True, disabled=full_disabled, key="story_full_generate"):
         try:
             parsed = _parse_full_paper(source.model_copy(deep=True))
             if parsed.extraction_notes:
@@ -364,35 +365,41 @@ def _render_related(story: PaperStory, df, vectorizer, svd, nn, vectors) -> None
 
 def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
     _init_state()
-    st.subheader("Paper Stories")
-    st.caption("A source-grounded, swipe-style mental model of a paper: problem, gap, mechanism, evidence, limitations, and takeaways.")
+    render_page_header(
+        "Paper Stories",
+        "Turn a dense paper into a study-friendly walkthrough",
+        "Choose a paper, decide how much source text to use, then generate verified cards for the problem, method, evidence, limitations, and takeaways.",
+    )
 
     provider_options = []
     if claude_code_available():
         provider_options.append("Claude subscription (local)")
     provider_options.append("OpenAI API")
 
-    st.radio(
-        "Story generation provider",
-        provider_options,
-        horizontal=True,
-        key="story_provider_choice",
-    )
-
-    if st.session_state["story_provider_choice"] == "Claude subscription (local)":
-        st.caption(
-            "Uses the Claude Code login on this computer. No Anthropic API key is required for this local testing path."
+    with st.expander("Generation settings", expanded=False):
+        st.radio(
+            "Provider",
+            provider_options,
+            horizontal=True,
+            key="story_provider_choice",
         )
-    elif not _config("OPENAI_API_KEY"):
-        st.caption("OPENAI_API_KEY is not configured. Existing LitRevBuddy features still work normally.")
 
-    source_tabs = st.tabs(["Selected paper", "External paper"])
+        if st.session_state["story_provider_choice"] == "Claude subscription (local)":
+            st.caption(
+                "Uses the Claude Code login on this computer. No Anthropic API key is required for local testing."
+            )
+        elif not _config("OPENAI_API_KEY"):
+            st.caption("OPENAI_API_KEY is not configured. Search and paper discovery still work normally.")
+
+    source_tabs = st.tabs(["From LitRevBuddy", "Bring your own paper"])
     with source_tabs[0]:
         selected = st.session_state.get("story_source")
         if selected:
+            st.caption("STEP 1 · SOURCE")
             _handle_library_source(PaperSource.model_validate(selected))
+            st.caption("Abstract mode is faster. Full-paper mode can support richer method, result, and limitation cards when a PDF is available.")
         else:
-            st.info("Choose a paper in Paper deep dive and select Explain as Story, or use the External paper tab.")
+            render_tip("Open a paper from Discover or Paper and choose 'Explain as Story'. You can also load a URL or PDF in the next tab.")
     with source_tabs[1]:
         _external_source_controls()
 
@@ -403,7 +410,7 @@ def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
     story = PaperStory.model_validate(active)
     st.divider()
     label = "Full-paper summary" if story.source_quality == "full_paper" else "Abstract-based summary"
-    st.caption(label)
+    st.caption(f"STEP 2 · STORY · {label}")
     st.markdown(f"### {story.title}")
     st.write(story.one_line_summary)
     _render_story_card(story)
