@@ -23,7 +23,7 @@ def render_paper_card(row) -> None:
     authors = clean_text(row.get("authors", ""))
     abstract = clean_text(row.get("abstract", ""))
 
-    st.markdown(
+    st.html(
         f"""
         <div style="
             border:1px solid rgba(127,127,127,.20);
@@ -39,8 +39,7 @@ def render_paper_card(row) -> None:
             {html.escape(title)}
           </div>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
     if authors:
