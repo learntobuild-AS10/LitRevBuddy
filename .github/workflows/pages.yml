@@ -34,6 +34,13 @@ jobs:
       - name: Build browser catalog
         run: python scripts/build_web_catalog.py --input artifacts/papers_features.parquet --output web/data
 
+      - name: Vendor browser PDF parser
+        run: |
+          npm install --no-save pdfjs-dist@4.10.38
+          mkdir -p web/vendor
+          cp node_modules/pdfjs-dist/build/pdf.mjs web/vendor/pdf.mjs
+          cp node_modules/pdfjs-dist/build/pdf.worker.mjs web/vendor/pdf.worker.mjs
+
       - name: Validate frontend JavaScript
         run: node --check web/app.js
 
