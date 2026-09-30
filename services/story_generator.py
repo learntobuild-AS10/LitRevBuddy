@@ -25,6 +25,14 @@ SECTION_BUDGETS = {
 }
 MAX_CONTEXT_CHARS = 85_000
 
+CARD_HEADLINE_MAX_WORDS = 16
+CARD_BODY_MAX_WORDS = 80
+CARD_BULLET_MAX_WORDS = 16
+CARD_MAX_BULLETS = 3
+SUMMARY_MAX_WORDS = 32
+FLASHCARD_QUESTION_MAX_WORDS = 26
+FLASHCARD_ANSWER_MAX_WORDS = 50
+
 SYSTEM_PROMPT = """You turn research papers into compact technical story cards for researchers.
 
 Accuracy rules are strict:
@@ -33,11 +41,14 @@ Accuracy rules are strict:
 3. Every card must include a short verbatim evidence span copied exactly from the supplied source text. The application verifies this span.
 4. claim_basis must be paper_stated when the card reports an explicit claim, paraphrase when it restates supported source content, or interpretation only for a cautious interpretation anchored in the evidence.
 5. If the source does not support a card type, omit it. In particular, abstract-only sources often do not support detailed experiment, results, or limitation cards.
-6. Prefer 7-9 cards for full papers and 5-7 cards for abstract-only sources, but never pad the story.
-7. Keep each card concise: one short body paragraph and no more than four bullets. Preserve exact numeric values when used.
-8. Set provenance_verified=false for every card and flashcard. The application will verify evidence after generation.
-9. The story must help a technically literate reader understand the problem, gap, central idea, mechanism, evidence, and limitations where those are actually supported.
-10. Do not write citations, markdown tables, or long prose blocks.
+6. Prefer 6-8 cards for full papers and 4-6 cards for abstract-only sources, but never pad the story.
+7. Write for a swipe card, not a paper summary. Headline: 8-16 words. Body: 45-80 words, ideally 2-3 sentences. Use at most 3 bullets, each under 16 words.
+8. Make every sentence earn its place. Remove setup phrases, repetition, generic praise, and details that do not change the reader's mental model.
+9. Keep the one-line summary under 32 words. Flashcard answers should usually be 1-3 sentences.
+10. Preserve exact numeric values when used.
+11. Set provenance_verified=false for every card and flashcard. The application will verify evidence after generation.
+12. The story must help a technically literate reader understand the problem, gap, central idea, mechanism, evidence, and limitations where those are actually supported.
+13. Do not write citations, markdown tables, or long prose blocks.
 
 Recommended card order: hook, problem, gap, core idea, method/how it works, experiment, results, limitations, takeaway. Omit unsupported stages rather than guessing.
 """
@@ -83,6 +94,17 @@ def build_source_context(parsed: ParsedPaper) -> str:
         pieces.append(f"<<<SECTION: EXTRACTED FULL TEXT>>>\n{parsed.full_text[:remaining]}")
 
     return "\n\n".join(pieces)
+
+
+def _clip_words(text: str, max_words: int) -> str:
+    words = (text or "").split()
+    if len(words) <= max_words:
+        return " ".join(words)
+
+    clipped = " ".join(words[:max_words]).rstrip(" ,;:-")
+    if clipped and clipped[-1] not in ".!?":
+        clipped += "…"
+    return clipped
 
 
 def _normalize_for_match(text: str) -> str:
@@ -148,9 +170,13 @@ def validate_story(story: PaperStory, parsed: ParsedPaper, source_context: str) 
         card.provenance_verified = evidence_ok and numbers_ok
         if card.provenance_verified:
             card.source_section = _locate_evidence_section(card.evidence, parsed)
-            card.bullets = card.bullets[:4]
-            card.body = card.body[:700]
-            card.headline = card.headline[:180]
+            card.headline = _clip_words(card.headline, CARD_HEADLINE_MAX_WORDS)
+            card.body = _clip_words(card.body, CARD_BODY_MAX_WORDS)
+            card.bullets = [
+                _clip_words(bullet, CARD_BULLET_MAX_WORDS)
+                for bullet in card.bullets[:CARD_MAX_BULLETS]
+                if bullet.strip()
+            ]
             verified_cards.append(card)
 
     story.cards = verified_cards
@@ -162,16 +188,26 @@ def validate_story(story: PaperStory, parsed: ParsedPaper, source_context: str) 
         flashcard.provenance_verified = evidence_ok and numbers_ok
         if flashcard.provenance_verified:
             flashcard.source_section = _locate_evidence_section(flashcard.evidence, parsed)
-            flashcard.question = flashcard.question[:240]
-            flashcard.answer = flashcard.answer[:700]
+            flashcard.question = _clip_words(
+                flashcard.question,
+                FLASHCARD_QUESTION_MAX_WORDS,
+            )
+            flashcard.answer = _clip_words(
+                flashcard.answer,
+                FLASHCARD_ANSWER_MAX_WORDS,
+            )
             verified_flashcards.append(flashcard)
     story.flashcards = verified_flashcards
 
     story.key_concepts = [concept[:120] for concept in story.key_concepts[:8] if concept.strip()]
-    story.short_title = story.short_title[:100] or source.title[:100]
-    story.one_line_summary = story.one_line_summary[:320]
+    story.short_title = _clip_words(story.short_title, 12) or _clip_words(source.title, 12)
+    story.one_line_summary = _clip_words(story.one_line_summary, SUMMARY_MAX_WORDS)
     if story.one_line_summary and not _numbers_supported(story.one_line_summary, source_context):
-        story.one_line_summary = story.cards[0].body[:320] if story.cards else source.title[:320]
+        story.one_line_summary = (
+            _clip_words(story.cards[0].body, SUMMARY_MAX_WORDS)
+            if story.cards
+            else _clip_words(source.title, SUMMARY_MAX_WORDS)
+        )
 
     minimum_cards = 3 if parsed.source_quality == "abstract" else 4
     if len(story.cards) < minimum_cards:
