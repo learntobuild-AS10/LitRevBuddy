@@ -107,6 +107,7 @@ def _init_state() -> None:
     st.session_state.setdefault("uploaded_parsed_paper", None)
     st.session_state.setdefault("uploaded_pdf_digest", None)
     st.session_state.setdefault("openrouter_session_key", "")
+    st.session_state.setdefault("shared_openrouter_generations", 0)
 
 
 def _parse_full_paper(source: PaperSource) -> ParsedPaper:
@@ -127,6 +128,7 @@ def _parse_full_paper(source: PaperSource) -> ParsedPaper:
 
 def _generate(parsed: ParsedPaper) -> None:
     provider_choice = st.session_state.get("story_provider_choice", "Free public · OpenRouter")
+    using_shared_openrouter = False
 
     if provider_choice == "Claude subscription (local)":
         model = _config("CLAUDE_CODE_MODEL", DEFAULT_CLAUDE_CODE_MODEL)
@@ -141,15 +143,32 @@ def _generate(parsed: ParsedPaper) -> None:
             return
         provider = OpenAIStoryProvider(api_key=api_key, model=model)
     else:
-        api_key = st.session_state.get("openrouter_session_key", "").strip() or _config("OPENROUTER_API_KEY")
+        personal_key = st.session_state.get("openrouter_session_key", "").strip()
+        shared_key = _config("OPENROUTER_API_KEY")
+        api_key = personal_key or shared_key
         model = _config("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
         provider_name = "openrouter"
+        using_shared_openrouter = bool(shared_key and not personal_key)
         if not api_key:
             st.info(
                 "Free public generation needs an OpenRouter key. "
                 "Add a free key in Generation settings; it stays only in this browser session."
             )
             return
+
+        if using_shared_openrouter:
+            try:
+                shared_limit = max(1, int(_config("OPENROUTER_SHARED_SESSION_LIMIT", "3")))
+            except ValueError:
+                shared_limit = 3
+            used = int(st.session_state.get("shared_openrouter_generations", 0))
+            if used >= shared_limit:
+                st.info(
+                    "This browser session has used its shared free-generation allowance. "
+                    "Add your own free OpenRouter key in Generation settings to continue."
+                )
+                return
+
         provider = OpenRouterStoryProvider(
             api_key=api_key,
             model=model,
@@ -172,6 +191,10 @@ def _generate(parsed: ParsedPaper) -> None:
         with st.spinner(f"Building a source-grounded paper story with {provider_choice}..."):
             story = generate_story(parsed, provider)
         cache[key] = story.model_dump()
+        if using_shared_openrouter:
+            st.session_state["shared_openrouter_generations"] = (
+                int(st.session_state.get("shared_openrouter_generations", 0)) + 1
+            )
 
     st.session_state["active_story"] = story.model_dump()
     st.session_state["story_card_index"] = 0
