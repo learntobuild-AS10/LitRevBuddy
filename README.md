@@ -6,14 +6,14 @@ The paper index currently contains 59,627 papers across AAAI, ACL, CVPR, ICCV, I
 
 ## Features
 
-- Topic search across paper titles and abstracts
-- Venue and year filtering
-- Cluster-based browsing
-- 2D topic map visualization
-- Paper deep dive and nearest-neighbor related papers
+- Search-first interface across 67,343 recent AI and medical-AI papers
+- Compact venue/year filters with persistent search state
+- Paper reading view with related-work navigation
+- Explore view combining research themes and the 2D topic map
 - Paper Stories: source-grounded, swipe-style explainers generated from an abstract or parsed full paper
 - External paper ingestion from paper URLs, direct PDFs, arXiv/OpenReview links, DOI landing pages where metadata is exposed, and PDF upload
 - Compact study area with key concepts and flashcards
+- Public free-generation path through OpenRouter's free model router
 
 ## Paper Stories architecture
 
@@ -72,6 +72,22 @@ The default Claude Code model alias is:
 
 This setting is optional. The local provider removes ANTHROPIC_API_KEY from the Claude subprocess environment so an API key does not accidentally override subscription authentication during this test path.
 
+### Public/free generation with OpenRouter
+
+The public build supports OpenRouter's free-model router. No API key is committed to the repository.
+
+For a shared public quota, add these values to Streamlit Community Cloud secrets:
+
+    OPENROUTER_API_KEY = "sk-or-v1-..."
+    OPENROUTER_MODEL = "openrouter/free"
+    APP_URL = "https://your-app.streamlit.app"
+
+OPENROUTER_MODEL is optional; `openrouter/free` is the default.
+
+If a shared key is not configured, users can paste their own free OpenRouter key in **Stories → Generation settings**. The key is held only in Streamlit session state and is not written to the repository or local files.
+
+Free-provider availability and rate limits are controlled by OpenRouter, so generation can occasionally be unavailable even while the rest of LitRevBuddy remains functional.
+
 ### OpenAI API
 
 OpenAI remains available as a separate provider. No key is hardcoded. Configure environment variables or Streamlit Community Cloud secrets:
@@ -81,7 +97,7 @@ OpenAI remains available as a separate provider. No key is hardcoded. Configure 
 
 OPENAI_MODEL is optional; gpt-5.6-luna is the default.
 
-If no paid provider is configured, search, maps, clusters, paper deep dive, and similarity continue to work normally.
+If no provider is configured, search, Explore, paper reading, and related-work discovery continue to work normally.
 
 ## Run locally
 
