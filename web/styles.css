@@ -63,6 +63,7 @@ a{color:inherit}
 .icon-btn{width:36px;height:36px;border:1px solid var(--line);border-radius:11px;background:var(--surface);cursor:pointer}
 .icon-btn:hover{transform:translateY(-1px);border-color:var(--faint)}
 .page{min-height:calc(100vh - 140px);padding-bottom:90px}
+#main:focus{outline:none}
 .view{display:none;animation:fade .22s ease}
 .view.active{display:block}
 @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
