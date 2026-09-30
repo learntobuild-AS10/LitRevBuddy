@@ -14,6 +14,8 @@ from models.story import PaperStory
 
 DEFAULT_OPENAI_MODEL = "gpt-5.6-luna"
 DEFAULT_CLAUDE_CODE_MODEL = "sonnet"
+DEFAULT_OPENROUTER_MODEL = "openrouter/free"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
 class LLMProviderError(RuntimeError):
@@ -153,3 +155,71 @@ class OpenAIStoryProvider(StoryLLMProvider):
         if story is None:
             raise LLMProviderError("The model returned no structured story.")
         return story
+
+
+class OpenRouterStoryProvider(StoryLLMProvider):
+    """Hosted provider for the public demo, using OpenRouter's free-model router."""
+
+    name = "openrouter"
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str = DEFAULT_OPENROUTER_MODEL,
+        site_url: str = "",
+        site_name: str = "LitRevBuddy",
+    ):
+        if not api_key:
+            raise LLMProviderError(
+                "An OpenRouter API key is required. Add OPENROUTER_API_KEY to Streamlit secrets "
+                "or enter a personal free key in Generation settings."
+            )
+        self.model = model or DEFAULT_OPENROUTER_MODEL
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url=OPENROUTER_BASE_URL,
+            default_headers={
+                **({"HTTP-Referer": site_url} if site_url else {}),
+                "X-Title": site_name,
+            },
+        )
+
+    def generate(self, *, system_prompt: str, user_prompt: str) -> PaperStory:
+        schema = json.dumps(PaperStory.model_json_schema(), separators=(",", ":"))
+        schema_prompt = (
+            f"{user_prompt}\n\n"
+            "Return ONLY one valid JSON object matching the supplied JSON Schema. "
+            "Do not use Markdown fences or add commentary.\n\n"
+            f"JSON SCHEMA:\n{schema}"
+        )
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": schema_prompt},
+                ],
+                temperature=0.2,
+            )
+        except Exception as exc:
+            raise LLMProviderError(
+                "Free story generation failed. The shared/free quota may be busy or exhausted; "
+                f"try again later or use your own OpenRouter key. Details: {exc}"
+            ) from exc
+
+        try:
+            result_text = response.choices[0].message.content
+        except Exception as exc:
+            raise LLMProviderError("OpenRouter returned no story content.") from exc
+
+        if not isinstance(result_text, str) or not result_text.strip():
+            raise LLMProviderError("OpenRouter returned an empty story response.")
+
+        try:
+            return PaperStory.model_validate_json(_extract_json_object(result_text))
+        except Exception as exc:
+            raise LLMProviderError(
+                f"The free model returned JSON that did not match the required story schema: {exc}"
+            ) from exc
