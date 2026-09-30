@@ -122,10 +122,11 @@
             <p id="citationStatus">Looking for published citation data…</p>
           </div>
           <div class="citation-actions">
-            <input id="citationSearch" type="search" placeholder="Find a paper or concept…" aria-label="Search citation graph" />
-            <select id="citationRelationFilter" aria-label="Citation relationship filter">
-              <option value="citations">Direct citations</option>
-              <option value="all">All bibliographic edges</option>
+            <input id="citationSearch" type="search" placeholder="Find a seed or cited paper…" aria-label="Search citation graph" />
+            <select id="citationRelationFilter" aria-label="Citation view">
+              <option value="neighborhood">Citation neighborhood</option>
+              <option value="direct">Direct seed citations</option>
+              <option value="shared">Shared references</option>
             </select>
             <label class="secondary-btn upload-btn">Open citation graph
               <input id="citationGraphUpload" type="file" accept=".json,application/json" hidden />
@@ -141,7 +142,7 @@
             <div class="empty compact-empty">Select a node to inspect its relationships.</div>
           </aside>
         </div>
-        <p class="microcopy">Citation edges are generated offline from bibliographic metadata. Uploaded JSON stays only in this page's memory and is never persisted by LitRevBuddy.</p>
+        <p class="microcopy">Every edge is an explicit bibliographic citation. The neighborhood view adds older papers cited by multiple LitRevBuddy seeds; it does not infer similarity or citation relationships. Uploaded JSON stays only in this page's memory.</p>
       </div>
 
       <div id="knowledgePanel" class="explore-panel">
