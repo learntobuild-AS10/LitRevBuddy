@@ -50,6 +50,21 @@ jobs:
           print(manifest)
           PY
 
+      - name: Enforce privacy invariants
+        run: |
+          if grep -En 'localStorage|sessionStorage|indexedDB|document\.cookie' web/app.js; then
+            echo "Persistent browser storage or cookies are not allowed in the public app."
+            exit 1
+          fi
+          if grep -En '<script[^>]+src=["'\'']https?://' web/*.html; then
+            echo "Third-party script tags are not allowed."
+            exit 1
+          fi
+          if grep -Ein 'google-analytics|gtag\(|segment\.com|mixpanel|posthog|stripe|paddle|lemonsqueezy|paypal' web/app.js web/index.html; then
+            echo "Analytics, payment, or subscription SDKs are not allowed."
+            exit 1
+          fi
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
