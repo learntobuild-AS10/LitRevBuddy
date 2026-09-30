@@ -8,7 +8,14 @@ import pandas as pd
 import streamlit as st
 
 from models.story import PaperSource, PaperStory, ParsedPaper
-from services.llm_provider import DEFAULT_OPENAI_MODEL, LLMProviderError, OpenAIStoryProvider
+from services.llm_provider import (
+    DEFAULT_CLAUDE_CODE_MODEL,
+    DEFAULT_OPENAI_MODEL,
+    ClaudeCodeStoryProvider,
+    LLMProviderError,
+    OpenAIStoryProvider,
+    claude_code_available,
+)
 from services.paper_fetcher import FetchError, MAX_PDF_BYTES, fetch_page_metadata, fetch_pdf_bytes
 from services.paper_parser import PDFParseError, parse_pdf_bytes, parsed_from_abstract
 from services.similarity import clean_text, get_related_by_text, get_similar_papers
@@ -113,18 +120,29 @@ def _parse_full_paper(source: PaperSource) -> ParsedPaper:
 
 
 def _generate(parsed: ParsedPaper) -> None:
-    api_key = _config("OPENAI_API_KEY")
-    model = _config("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
-    if not api_key:
-        st.info(
-            "Paper Stories is ready, but no LLM key is configured. Add OPENAI_API_KEY in Streamlit Secrets or the environment. The rest of LitRevBuddy remains available without it."
-        )
-        return
+    provider_choice = st.session_state.get("story_provider_choice", "OpenAI API")
+
+    if provider_choice == "Claude subscription (local)":
+        model = _config("CLAUDE_CODE_MODEL", DEFAULT_CLAUDE_CODE_MODEL)
+        provider_name = "claude_code"
+        provider = ClaudeCodeStoryProvider(model=model)
+    else:
+        api_key = _config("OPENAI_API_KEY")
+        model = _config("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
+        provider_name = "openai"
+        if not api_key:
+            st.info(
+                "OpenAI API is selected, but OPENAI_API_KEY is not configured. "
+                "Choose Claude subscription (local) when running on a computer with Claude Code, "
+                "or add an OpenAI API key."
+            )
+            return
+        provider = OpenAIStoryProvider(api_key=api_key, model=model)
 
     source_fingerprint = sha256_text(parsed.full_text + "\n" + parsed.source.title)
     key = story_cache_key(
         source_fingerprint=source_fingerprint,
-        provider="openai",
+        provider=provider_name,
         model=model,
         mode=parsed.source_quality,
     )
@@ -133,8 +151,7 @@ def _generate(parsed: ParsedPaper) -> None:
     if key in cache:
         story = PaperStory.model_validate(cache[key])
     else:
-        provider = OpenAIStoryProvider(api_key=api_key, model=model)
-        with st.spinner("Building a source-grounded paper story..."):
+        with st.spinner(f"Building a source-grounded paper story with {provider_choice}..."):
             story = generate_story(parsed, provider)
         cache[key] = story.model_dump()
 
@@ -349,6 +366,25 @@ def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
     _init_state()
     st.subheader("Paper Stories")
     st.caption("A source-grounded, swipe-style mental model of a paper: problem, gap, mechanism, evidence, limitations, and takeaways.")
+
+    provider_options = []
+    if claude_code_available():
+        provider_options.append("Claude subscription (local)")
+    provider_options.append("OpenAI API")
+
+    st.radio(
+        "Story generation provider",
+        provider_options,
+        horizontal=True,
+        key="story_provider_choice",
+    )
+
+    if st.session_state["story_provider_choice"] == "Claude subscription (local)":
+        st.caption(
+            "Uses the Claude Code login on this computer. No Anthropic API key is required for this local testing path."
+        )
+    elif not _config("OPENAI_API_KEY"):
+        st.caption("OPENAI_API_KEY is not configured. Existing LitRevBuddy features still work normally.")
 
     source_tabs = st.tabs(["Selected paper", "External paper"])
     with source_tabs[0]:
