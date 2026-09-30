@@ -139,7 +139,7 @@ def _generate(parsed: ParsedPaper) -> None:
             return
         provider = OpenAIStoryProvider(api_key=api_key, model=model)
     else:
-        api_key = _config("OPENROUTER_API_KEY") or st.session_state.get("openrouter_session_key", "").strip()
+        api_key = st.session_state.get("openrouter_session_key", "").strip() or _config("OPENROUTER_API_KEY")
         model = _config("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
         provider_name = "openrouter"
         if not api_key:
