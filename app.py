@@ -15,24 +15,23 @@ from components.ui import (
     render_result_preview,
     render_tip,
 )
-from services.similarity import get_similar_papers, make_result_table, query_scores
+from services.similarity import get_similar_papers, query_scores
 
 
 ARTIFACT_DIR = Path("artifacts")
-NAV_OPTIONS = ["Discover", "Topic map", "Clusters", "Paper", "Stories"]
+NAV_OPTIONS = ["Search", "Explore", "Stories", "About"]
 NAV_LABELS = {
-    "Discover": "🔎 Discover",
-    "Topic map": "🗺️ Topic map",
-    "Clusters": "🧭 Clusters",
-    "Paper": "📄 Paper",
+    "Search": "🔎 Search",
+    "Explore": "🧭 Explore",
     "Stories": "✨ Stories",
+    "About": "About",
 }
 
 st.set_page_config(
     page_title="LitRevBuddy",
     page_icon="📚",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -50,19 +49,46 @@ def load_models():
     return vectorizer, svd, nn, vectors
 
 
-def _go_to_paper(paper_id) -> None:
+def _reset_paper_detail() -> None:
+    st.session_state["selected_paper_id"] = None
+    st.session_state["search_view"] = "results"
+
+
+def _open_paper(paper_id) -> None:
     st.session_state["selected_paper_id"] = int(paper_id)
-    st.session_state["paper_picker"] = int(paper_id)
-    st.session_state["pending_nav"] = "Paper"
+    st.session_state["search_view"] = "paper"
+    st.session_state["primary_nav"] = "Search"
     st.rerun()
 
 
-def _go_to_story(row) -> None:
+def _open_story(row) -> None:
     st.session_state["story_source"] = library_source_from_row(row)
     st.session_state["active_story"] = None
     st.session_state["story_card_index"] = 0
-    st.session_state["pending_nav"] = "Stories"
+    st.session_state["primary_nav"] = "Stories"
     st.rerun()
+
+
+def _filter_papers(df, query, selected_venues, selected_years, min_score, vectorizer, svd, vectors):
+    scores = query_scores(query, vectorizer, svd, vectors)
+    working = df.copy()
+    working["score"] = scores
+
+    mask = (
+        working["venue"].isin(selected_venues)
+        & working["year"].astype(int).isin(selected_years)
+    )
+    working = working[mask].copy()
+
+    if query.strip():
+        working = working[working["score"] >= min_score]
+        working = working.sort_values("score", ascending=False)
+    else:
+        working = working.sort_values(
+            ["year", "venue", "title"],
+            ascending=[False, True, True],
+        )
+    return working
 
 
 inject_global_styles()
@@ -71,13 +97,19 @@ with st.spinner("Loading the paper library…"):
     df = load_papers()
     vectorizer, svd, nn, vectors = load_models()
 
-render_app_header(len(df))
+venues = sorted(df["venue"].dropna().unique().tolist())
+years = sorted(df["year"].dropna().astype(int).unique().tolist(), reverse=True)
 
-pending_nav = st.session_state.pop("pending_nav", None)
-if pending_nav:
-    st.session_state["primary_nav"] = pending_nav
-if "primary_nav" not in st.session_state:
-    st.session_state["primary_nav"] = "Discover"
+st.session_state.setdefault("primary_nav", "Search")
+st.session_state.setdefault("global_query", "")
+st.session_state.setdefault("filter_venues", venues)
+st.session_state.setdefault("filter_years", years)
+st.session_state.setdefault("result_limit", 15)
+st.session_state.setdefault("min_score", 0.0)
+st.session_state.setdefault("selected_paper_id", None)
+st.session_state.setdefault("search_view", "results")
+
+render_app_header(len(df))
 
 navigation = st.radio(
     "Navigation",
@@ -88,330 +120,354 @@ navigation = st.radio(
     key="primary_nav",
 )
 
-venues = sorted(df["venue"].dropna().unique().tolist())
-years = sorted(df["year"].dropna().astype(int).unique().tolist(), reverse=True)
+if navigation == "Search":
+    if st.session_state.get("search_view") == "paper" and st.session_state.get("selected_paper_id"):
+        selected_id = int(st.session_state["selected_paper_id"])
+        match = df[df["id"] == selected_id]
 
-st.session_state.setdefault("filter_venues", venues)
-st.session_state.setdefault("filter_years", years)
-st.session_state.setdefault("result_limit", 250)
-st.session_state.setdefault("min_score", 0.0)
-st.session_state.setdefault("global_query", "")
-
-if navigation != "Stories":
-    query = st.text_input(
-        "Search the literature",
-        key="global_query",
-        placeholder="Search a topic, method, task, author, or phrase — e.g. multimodal survival prediction",
-        help="LitRevBuddy ranks papers using the existing TF-IDF + 128-dimensional topic representation.",
-    )
-else:
-    query = st.session_state.get("global_query", "")
-
-with st.sidebar:
-    st.markdown("### Library")
-    st.caption(f"{len(df):,} papers · {len(venues)} venues · {min(years)}–{max(years)}")
-
-    if navigation != "Stories":
-        st.divider()
-        st.markdown("### Refine results")
-
-        selected_venues = st.multiselect(
-            "Venues",
-            venues,
-            key="filter_venues",
-            help="Leave all selected to search the full library.",
-        )
-
-        selected_years = st.multiselect(
-            "Years",
-            years,
-            key="filter_years",
-        )
-
-        quick_a, quick_b = st.columns(2)
-        if quick_a.button(f"{max(years)} only", use_container_width=True):
-            st.session_state["filter_years"] = [max(years)]
-            st.rerun()
-        if quick_b.button("All years", use_container_width=True):
-            st.session_state["filter_years"] = years
+        if match.empty:
+            _reset_paper_detail()
             st.rerun()
 
-        result_limit = st.slider(
-            "Papers to consider",
-            min_value=25,
-            max_value=2000,
-            value=int(st.session_state.get("result_limit", 250)),
-            step=25,
-            key="result_limit",
-            help="Controls how many ranked papers are shown or used in the current view.",
-        )
+        selected = match.iloc[0]
 
-        with st.expander("Advanced relevance"):
-            min_score = st.slider(
-                "Minimum relevance score",
-                min_value=0.0,
-                max_value=1.0,
-                value=float(st.session_state.get("min_score", 0.0)),
-                step=0.01,
-                key="min_score",
-                disabled=not bool(query.strip()),
-            )
-            st.caption("Usually leave this at 0. Increase it only when you want stricter semantic matching.")
-
-        if st.button("Reset search & filters", use_container_width=True):
-            st.session_state["global_query"] = ""
-            st.session_state["filter_venues"] = venues
-            st.session_state["filter_years"] = years
-            st.session_state["result_limit"] = 250
-            st.session_state["min_score"] = 0.0
+        if st.button("← Back to search results"):
+            _reset_paper_detail()
             st.rerun()
-    else:
-        selected_venues = st.session_state.get("filter_venues", venues)
-        selected_years = st.session_state.get("filter_years", years)
-        result_limit = int(st.session_state.get("result_limit", 250))
-        min_score = float(st.session_state.get("min_score", 0.0))
-        st.divider()
-        st.markdown("### Story workflow")
-        st.caption("1. Pick a library paper or load your own PDF.\n\n2. Choose abstract or full-paper mode.\n\n3. Generate and study the verified cards.")
 
-scores = query_scores(query, vectorizer, svd, vectors)
-working = df.copy()
-working["score"] = scores
-
-mask = (
-    working["venue"].isin(selected_venues)
-    & working["year"].astype(int).isin(selected_years)
-)
-working = working[mask].copy()
-
-if query.strip():
-    working = working[working["score"] >= min_score]
-    working = working.sort_values("score", ascending=False)
-else:
-    working = working.sort_values(["year", "venue", "title"], ascending=[False, True, True])
-
-results = working.head(result_limit).copy()
-
-if navigation == "Discover":
-    render_page_header(
-        "Search & browse",
-        "Find the papers worth opening",
-        "Start broad, then narrow by venue or year. The first results are ranked by topic similarity when you enter a query.",
-    )
-
-    metrics = st.columns(4)
-    metrics[0].metric("Indexed papers", f"{len(df):,}")
-    metrics[1].metric("Matches", f"{len(working):,}")
-    metrics[2].metric("Showing", f"{len(results):,}")
-    metrics[3].metric("Venues", f"{results['venue'].nunique():,}" if len(results) else "0")
-
-    if not query.strip():
-        render_tip("Try a research question rather than a single keyword. For example: 'vision-language models for medical image segmentation'.")
-
-    if len(results) == 0:
-        st.info("No papers match this search and filter combination. Broaden the years/venues or lower the relevance threshold.")
-    else:
-        st.markdown("### Top papers")
-        preview_count = min(12, len(results))
-        for rank, (_, row) in enumerate(results.head(preview_count).iterrows(), start=1):
-            with st.container(border=True):
-                left, actions = st.columns([5, 1.35], vertical_alignment="center")
-                with left:
-                    st.caption(f"#{rank}")
-                    render_result_preview(row, show_score=bool(query.strip()))
-                with actions:
-                    if st.button("Open paper", key=f"open_{int(row['id'])}", use_container_width=True):
-                        _go_to_paper(row["id"])
-                    if st.button("Explain", key=f"story_{int(row['id'])}", use_container_width=True):
-                        _go_to_story(row)
-                    links = []
-                    if str(row.get("paper_url", "") or "").strip():
-                        links.append(f"[Page ↗]({row['paper_url']})")
-                    if str(row.get("pdf_url", "") or "").strip():
-                        links.append(f"[PDF ↗]({row['pdf_url']})")
-                    if links:
-                        st.markdown(" · ".join(links))
-
-        if len(results) > preview_count:
-            with st.expander(f"Browse all {len(results):,} displayed papers"):
-                st.dataframe(
-                    make_result_table(results),
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "title": st.column_config.TextColumn("Title", width="large"),
-                        "paper_url": st.column_config.LinkColumn("Paper"),
-                        "pdf_url": st.column_config.LinkColumn("PDF"),
-                        "score": st.column_config.NumberColumn("Relevance", format="%.3f"),
-                    },
-                )
-
-elif navigation == "Topic map":
-    render_page_header(
-        "Visual exploration",
-        "See how the current papers relate in topic space",
-        "Nearby points have similar latent topic representations. Use the search and filters above to focus the map before exploring.",
-    )
-
-    if len(results) == 0:
-        st.info("No papers are available to plot with the current filters.")
-    else:
-        plot_df = results.copy()
-        if len(plot_df) > 5000:
-            plot_df = plot_df.sample(5000, random_state=13)
-        st.caption(f"Plotting {len(plot_df):,} papers from the current result set.")
-
-        fig = px.scatter(
-            plot_df,
-            x="x",
-            y="y",
-            color="venue",
-            hover_name="title",
-            hover_data={
-                "year": True,
-                "cluster_label": True,
-                "score": ":.3f",
-                "x": False,
-                "y": False,
-            },
-            height=730,
-        )
-        fig.update_traces(marker=dict(size=6, opacity=0.72))
-        fig.update_layout(
-            margin=dict(l=0, r=0, t=15, b=0),
-            xaxis_title=None,
-            yaxis_title=None,
-            legend_title_text="Venue",
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.info("Tip: hover over a point to see its title and research cluster. Narrow the search first if the map feels crowded.")
-
-elif navigation == "Clusters":
-    render_page_header(
-        "Theme browser",
-        "Move through the literature by research theme",
-        "Clusters are automatically derived from the same topic representation used for search. They are navigation aids, not hand-curated taxonomies.",
-    )
-
-    if len(results) == 0:
-        st.info("No clusters are available with the current filters.")
-    else:
-        cluster_summary = (
-            results.groupby(["cluster_id", "cluster_label"], as_index=False)
-            .agg(
-                papers=("id", "count"),
-                avg_score=("score", "mean"),
-                venues=("venue", lambda x: ", ".join(sorted(set(x))[:8])),
-                year_min=("year", "min"),
-                year_max=("year", "max"),
-            )
-            .sort_values(["papers", "avg_score"], ascending=[False, False])
-        )
-        cluster_summary["years"] = (
-            cluster_summary["year_min"].astype(int).astype(str)
-            + "–"
-            + cluster_summary["year_max"].astype(int).astype(str)
-        )
-
-        selected_cluster = st.selectbox(
-            "Choose a research theme",
-            cluster_summary["cluster_id"].tolist(),
-            format_func=lambda cluster_id: (
-                f"{cluster_summary.loc[cluster_summary['cluster_id'] == cluster_id, 'cluster_label'].iloc[0]}"
-                f" · {int(cluster_summary.loc[cluster_summary['cluster_id'] == cluster_id, 'papers'].iloc[0])} papers"
-            ),
-        )
-
-        cluster_papers = results[results["cluster_id"] == selected_cluster].copy()
-        if query.strip():
-            cluster_papers = cluster_papers.sort_values("score", ascending=False)
-        else:
-            cluster_papers = cluster_papers.sort_values(["year", "title"], ascending=[False, True])
-
-        cluster_label = cluster_summary.loc[
-            cluster_summary["cluster_id"] == selected_cluster, "cluster_label"
-        ].iloc[0]
-        st.markdown(f"### {cluster_label}")
-        st.caption(f"{len(cluster_papers):,} papers under the current filters")
-
-        preview_count = min(8, len(cluster_papers))
-        for _, row in cluster_papers.head(preview_count).iterrows():
-            with st.container(border=True):
-                left, action = st.columns([5, 1.2], vertical_alignment="center")
-                with left:
-                    render_result_preview(row, show_score=bool(query.strip()))
-                with action:
-                    if st.button("Open", key=f"cluster_open_{int(row['id'])}", use_container_width=True):
-                        _go_to_paper(row["id"])
-
-        with st.expander("View cluster summary table"):
-            st.dataframe(
-                cluster_summary[["cluster_label", "papers", "avg_score", "venues", "years"]],
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "cluster_label": st.column_config.TextColumn("Theme", width="large"),
-                    "avg_score": st.column_config.NumberColumn("Avg relevance", format="%.3f"),
-                },
-            )
-
-elif navigation == "Paper":
-    render_page_header(
-        "Deep dive",
-        "Read one paper in context",
-        "Review the abstract and source links, then jump directly to a source-grounded story or inspect the nearest papers in the index.",
-    )
-
-    if len(results) == 0:
-        st.info("No papers are available for deep dive with the current search and filters.")
-    else:
-        option_df = results.head(2000).copy()
-        ids = [int(value) for value in option_df["id"].tolist()]
-        id_to_title = dict(zip(ids, option_df["title"]))
-
-        preferred = st.session_state.get("selected_paper_id")
-        if preferred not in ids:
-            preferred = ids[0]
-        if st.session_state.get("paper_picker") not in ids:
-            st.session_state["paper_picker"] = preferred
-
-        selected_id = st.selectbox(
-            "Paper",
-            ids,
-            format_func=lambda paper_id: id_to_title.get(paper_id, str(paper_id)),
-            key="paper_picker",
-            help="Start typing a title to search within the current result set.",
-        )
-        st.session_state["selected_paper_id"] = int(selected_id)
-
-        selected = df[df["id"] == selected_id].iloc[0]
-        selected_row_idx = int(selected["row_idx"])
         render_paper_card(selected)
 
-        action_cols = st.columns([1.25, 1.25, 3])
-        if action_cols[0].button("✨ Explain as Story", type="primary", use_container_width=True):
-            _go_to_story(selected)
-        if str(selected.get("pdf_url", "") or "").strip():
-            action_cols[1].markdown(f"[Open full PDF ↗]({selected['pdf_url']})")
+        action_a, action_b, action_c = st.columns([1.35, 1.1, 3])
+        if action_a.button("✨ Understand this paper", type="primary", use_container_width=True):
+            _open_story(selected)
+        pdf_url = str(selected.get("pdf_url", "") or "").strip()
+        if pdf_url:
+            action_b.markdown(f"[Open PDF ↗]({pdf_url})")
 
         st.divider()
-        st.markdown("### Related work")
-        st.caption("Nearest neighbors in LitRevBuddy's 128-dimensional topic space.")
+        render_page_header(
+            "Related work",
+            "Continue from this paper",
+            "These papers are nearest neighbors in LitRevBuddy's 128-dimensional topic representation.",
+        )
 
-        similar = get_similar_papers(df, selected_row_idx, nn, vectors, top_k=8)
-        if len(similar) == 0:
-            st.info("No similar papers were found.")
+        similar = get_similar_papers(
+            df,
+            int(selected["row_idx"]),
+            nn,
+            vectors,
+            top_k=8,
+        )
+        if similar.empty:
+            st.info("No related papers were found.")
         else:
             for _, row in similar.iterrows():
                 with st.container(border=True):
-                    left, action = st.columns([5, 1.2], vertical_alignment="center")
+                    left, right = st.columns([5, 1.1], vertical_alignment="center")
                     with left:
                         st.caption(f"Similarity {float(row['similarity']):.3f}")
                         render_result_preview(row)
-                    with action:
-                        if st.button("Open", key=f"similar_open_{int(row['id'])}", use_container_width=True):
-                            _go_to_paper(row["id"])
+                    with right:
+                        if st.button(
+                            "Open",
+                            key=f"related_{int(row['id'])}",
+                            use_container_width=True,
+                        ):
+                            _open_paper(row["id"])
+        st.stop()
+
+    render_page_header(
+        "Literature search",
+        "Find the research that matters",
+        "Search recent AI papers by topic, method, task, author, or phrase. Open a paper to read it in context or turn it into a source-grounded story.",
+    )
+
+    query = st.text_input(
+        "Search 67,343 papers",
+        key="global_query",
+        placeholder="e.g. multimodal glioblastoma survival prediction",
+        label_visibility="collapsed",
+    )
+
+    with st.expander("Filters", expanded=False):
+        filter_a, filter_b = st.columns(2)
+        with filter_a:
+            selected_venues = st.multiselect(
+                "Venues",
+                venues,
+                key="filter_venues",
+            )
+        with filter_b:
+            selected_years = st.multiselect(
+                "Years",
+                years,
+                key="filter_years",
+            )
+
+        control_a, control_b, control_c = st.columns([1, 1, 2])
+        if control_a.button(f"{max(years)} only", use_container_width=True):
+            st.session_state["filter_years"] = [max(years)]
+            st.rerun()
+        if control_b.button("Reset filters", use_container_width=True):
+            st.session_state["filter_venues"] = venues
+            st.session_state["filter_years"] = years
+            st.session_state["min_score"] = 0.0
+            st.rerun()
+        with control_c:
+            min_score = st.slider(
+                "Minimum relevance",
+                0.0,
+                1.0,
+                float(st.session_state.get("min_score", 0.0)),
+                0.01,
+                key="min_score",
+                disabled=not bool(query.strip()),
+                help="Advanced control. Most searches work best at 0.",
+            )
+
+    selected_venues = st.session_state.get("filter_venues", venues)
+    selected_years = st.session_state.get("filter_years", years)
+    min_score = float(st.session_state.get("min_score", 0.0))
+
+    working = _filter_papers(
+        df,
+        query,
+        selected_venues,
+        selected_years,
+        min_score,
+        vectorizer,
+        svd,
+        vectors,
+    )
+
+    if not query.strip():
+        render_tip(
+            "Try a research question, not just a keyword — for example: "
+            "'vision-language models for medical image segmentation'."
+        )
+
+    if working.empty:
+        st.info("No papers match the current search and filters. Try broadening the venue/year selection.")
+    else:
+        visible_count = min(int(st.session_state.get("result_limit", 15)), len(working))
+        st.caption(f"{len(working):,} matches · showing {visible_count:,}")
+
+        for rank, (_, row) in enumerate(working.head(visible_count).iterrows(), start=1):
+            with st.container(border=True):
+                left, right = st.columns([5, 1.3], vertical_alignment="center")
+                with left:
+                    st.caption(f"#{rank}")
+                    render_result_preview(row, show_score=bool(query.strip()))
+                with right:
+                    if st.button(
+                        "Read paper",
+                        key=f"search_open_{int(row['id'])}",
+                        use_container_width=True,
+                    ):
+                        _open_paper(row["id"])
+                    if st.button(
+                        "✨ Explain",
+                        key=f"search_story_{int(row['id'])}",
+                        use_container_width=True,
+                    ):
+                        _open_story(row)
+
+                    links = []
+                    paper_url = str(row.get("paper_url", "") or "").strip()
+                    pdf_url = str(row.get("pdf_url", "") or "").strip()
+                    if paper_url:
+                        links.append(f"[Page ↗]({paper_url})")
+                    if pdf_url:
+                        links.append(f"[PDF ↗]({pdf_url})")
+                    if links:
+                        st.markdown(" · ".join(links))
+
+        if visible_count < len(working):
+            more_col, _ = st.columns([1, 4])
+            if more_col.button("Load 15 more", use_container_width=True):
+                st.session_state["result_limit"] = min(visible_count + 15, 120)
+                st.rerun()
+
+elif navigation == "Explore":
+    render_page_header(
+        "Research landscape",
+        "Explore the literature by theme",
+        "Browse automatically discovered research themes or switch to the topic map to see how papers sit near one another.",
+    )
+
+    explore_query = st.text_input(
+        "Search within Explore",
+        value=st.session_state.get("global_query", ""),
+        placeholder="Focus Explore on a topic, or leave blank for the full recent library",
+        key="explore_query",
+    )
+
+    explore_filters = st.expander("Scope Explore", expanded=False)
+    with explore_filters:
+        explore_a, explore_b = st.columns(2)
+        explore_venues = explore_a.multiselect(
+            "Venues",
+            venues,
+            default=st.session_state.get("filter_venues", venues),
+            key="explore_venues",
+        )
+        explore_years = explore_b.multiselect(
+            "Years",
+            years,
+            default=st.session_state.get("filter_years", years),
+            key="explore_years",
+        )
+
+    explore_df = _filter_papers(
+        df,
+        explore_query,
+        explore_venues,
+        explore_years,
+        0.0,
+        vectorizer,
+        svd,
+        vectors,
+    ).head(3000)
+
+    topic_tab, map_tab = st.tabs(["Topics", "Map"])
+
+    with topic_tab:
+        if explore_df.empty:
+            st.info("Nothing to explore with the current scope.")
+        else:
+            cluster_summary = (
+                explore_df.groupby(["cluster_id", "cluster_label"], as_index=False)
+                .agg(
+                    papers=("id", "count"),
+                    avg_score=("score", "mean"),
+                    latest_year=("year", "max"),
+                )
+                .sort_values(
+                    ["papers", "avg_score"],
+                    ascending=[False, False],
+                )
+            )
+
+            selected_cluster = st.selectbox(
+                "Research theme",
+                cluster_summary["cluster_id"].tolist(),
+                format_func=lambda cluster_id: (
+                    f"{cluster_summary.loc[cluster_summary['cluster_id'] == cluster_id, 'cluster_label'].iloc[0]}"
+                    f" · {int(cluster_summary.loc[cluster_summary['cluster_id'] == cluster_id, 'papers'].iloc[0])} papers"
+                ),
+                label_visibility="collapsed",
+            )
+
+            cluster_rows = explore_df[explore_df["cluster_id"] == selected_cluster].copy()
+            cluster_name = cluster_summary.loc[
+                cluster_summary["cluster_id"] == selected_cluster,
+                "cluster_label",
+            ].iloc[0]
+
+            st.markdown(f"### {cluster_name}")
+            st.caption(f"{len(cluster_rows):,} papers in this view")
+
+            for _, row in cluster_rows.head(10).iterrows():
+                with st.container(border=True):
+                    left, right = st.columns([5, 1.1], vertical_alignment="center")
+                    with left:
+                        render_result_preview(row, show_score=bool(explore_query.strip()))
+                    with right:
+                        if st.button(
+                            "Open",
+                            key=f"topic_open_{int(row['id'])}",
+                            use_container_width=True,
+                        ):
+                            _open_paper(row["id"])
+
+    with map_tab:
+        if explore_df.empty:
+            st.info("Nothing to plot with the current scope.")
+        else:
+            plot_df = explore_df
+            if len(plot_df) > 2500:
+                plot_df = plot_df.sample(2500, random_state=13)
+
+            fig = px.scatter(
+                plot_df,
+                x="x",
+                y="y",
+                color="venue",
+                hover_name="title",
+                hover_data={
+                    "year": True,
+                    "cluster_label": True,
+                    "x": False,
+                    "y": False,
+                },
+                height=720,
+            )
+            fig.update_traces(marker=dict(size=6, opacity=0.72))
+            fig.update_layout(
+                margin=dict(l=0, r=0, t=10, b=0),
+                xaxis_title=None,
+                yaxis_title=None,
+                legend_title_text="Venue",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            st.caption(
+                "Nearby points have similar topic representations. "
+                "Use Topics when you want a cleaner, list-based way to browse."
+            )
 
 elif navigation == "Stories":
     render_story_view(df, vectorizer, svd, nn, vectors)
+
+elif navigation == "About":
+    render_page_header(
+        "About LitRevBuddy",
+        "A research discovery and paper-understanding workspace",
+        "LitRevBuddy combines a curated recent-paper index with lightweight semantic retrieval, topic exploration, related-work discovery, and source-grounded AI explanations.",
+    )
+
+    stats = st.columns(4)
+    stats[0].metric("Papers", f"{len(df):,}")
+    stats[1].metric("Venues", f"{df['venue'].nunique():,}")
+    stats[2].metric("Years", f"{df['year'].nunique():,}")
+    stats[3].metric("Research themes", f"{df['cluster_id'].nunique():,}")
+
+    st.markdown("### What you can do")
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        st.markdown("#### Search")
+        st.write("Find relevant papers across recent major AI and medical-AI venues.")
+    with col_b:
+        st.markdown("#### Understand")
+        st.write("Convert an abstract or full paper into source-grounded explanation cards and study aids.")
+    with col_c:
+        st.markdown("#### Connect")
+        st.write("Move from one paper to related work, neighboring themes, and the broader research landscape.")
+
+    st.markdown("### How search works")
+    st.write(
+        "LitRevBuddy uses TF-IDF features followed by a 128-dimensional TruncatedSVD topic representation. "
+        "The same representation powers query ranking, related-paper retrieval, clustering, and the 2D exploration map."
+    )
+
+    st.markdown("### Current coverage")
+    coverage = (
+        df.groupby(["venue", "year"])
+        .size()
+        .reset_index(name="papers")
+        .sort_values(["year", "venue"], ascending=[False, True])
+    )
+    st.dataframe(
+        coverage,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "venue": "Venue",
+            "year": "Year",
+            "papers": st.column_config.NumberColumn("Papers", format="%d"),
+        },
+    )
+
+    st.caption(
+        "AI-generated stories are designed as study aids, not substitutes for reading the source paper. "
+        "Every displayed story card is checked against a supporting source span before it is shown."
+    )
