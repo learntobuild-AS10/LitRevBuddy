@@ -432,7 +432,7 @@ function renderDeepStorySetup(message="Load the full paper for a deeper walkthro
           ${paper?.pdf?`<button id="loadPdfDirect" class="action-btn primary">Try paper PDF</button>`:""}
           <label class="action-btn upload-btn">Choose PDF<input id="deepPdfUpload" type="file" accept="application/pdf,.pdf" hidden /></label>
         </div>
-        <p class="microcopy">PDF text is processed only in this page's memory. It is not uploaded to LitRevBuddy or persisted.</p>
+        <p class="microcopy">PDF text is processed only in this page's memory. It is not uploaded to LitRevBuddy or persisted. If you later choose AI Story, a bounded portion of this extracted text will be sent directly to OpenRouter after your explicit confirmation.</p>
       </div>
     </div>`;
 
@@ -537,7 +537,7 @@ async function aiStory() {
           <input id="orKey" type="password" placeholder="sk-or-v1-…" autocomplete="off" />
           <label class="consent-row">
             <input id="aiConsent" type="checkbox" />
-            <span>I understand that generating an AI story sends this paper's abstract to OpenRouter, a third-party service. LitRevBuddy does not create an account, subscription, or payment for me.</span>
+            <span>I understand that generating an AI story sends source text from this paper to OpenRouter, a third-party service. If Deep Story is loaded, this may include extracted full-paper text. LitRevBuddy does not create an account, subscription, or payment for me.</span>
           </label>
           <button id="connectAI" class="action-btn primary" disabled>Generate AI story</button>
           <button id="cancelAI" class="action-btn">Use source cards instead</button>
