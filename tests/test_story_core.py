@@ -194,11 +194,11 @@ The results report an accuracy of 91.2% on Dataset X under the stated setup.
 
         self.assertEqual(len(checked.cards), 3)
         for checked_card in checked.cards:
-            self.assertLessEqual(len(checked_card.headline.split()), 16)
-            self.assertLessEqual(len(checked_card.body.split()), 80)
+            self.assertLessEqual(len(checked_card.headline.split()), 14)
+            self.assertLessEqual(len(checked_card.body.split()), 65)
             self.assertLessEqual(len(checked_card.bullets), 3)
-            self.assertTrue(all(len(item.split()) <= 16 for item in checked_card.bullets))
-        self.assertLessEqual(len(checked.one_line_summary.split()), 32)
+            self.assertTrue(all(len(item.split()) <= 12 for item in checked_card.bullets))
+        self.assertLessEqual(len(checked.one_line_summary.split()), 24)
 
     def test_miccai_author_extraction(self):
         html = """
