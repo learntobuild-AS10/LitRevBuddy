@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -16,6 +17,12 @@ def _safe_source_file(value: object) -> str:
         return ""
     text = str(value).replace("\\", "/")
     return Path(text).name
+
+
+def _litrevbuddy_id_from_source(value: object) -> int | None:
+    name = _safe_source_file(value)
+    match = re.match(r"^(\\d+)__", name)
+    return int(match.group(1)) if match else None
 
 
 def _safe_url(value: object) -> str:
@@ -60,6 +67,7 @@ def sanitize_graph(raw: dict) -> dict:
                 "label": str(node.get("label") or node_id),
                 "file_type": str(node.get("file_type") or node.get("type") or "concept"),
                 "source_file": _safe_source_file(node.get("source_file")),
+                "litrevbuddy_id": _litrevbuddy_id_from_source(node.get("source_file")),
                 "source_location": str(node.get("source_location") or ""),
                 "source_url": _safe_url(node.get("source_url")),
                 "community": community,
