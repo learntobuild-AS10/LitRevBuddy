@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import json
+import os
+import re
+import shutil
+import subprocess
 from abc import ABC, abstractmethod
 
 from openai import OpenAI
@@ -8,6 +13,7 @@ from models.story import PaperStory
 
 
 DEFAULT_OPENAI_MODEL = "gpt-5.6-luna"
+DEFAULT_CLAUDE_CODE_MODEL = "sonnet"
 
 
 class LLMProviderError(RuntimeError):
@@ -21,6 +27,104 @@ class StoryLLMProvider(ABC):
     @abstractmethod
     def generate(self, *, system_prompt: str, user_prompt: str) -> PaperStory:
         raise NotImplementedError
+
+
+def claude_code_available() -> bool:
+    return shutil.which("claude") is not None
+
+
+def _extract_json_object(text: str) -> str:
+    text = (text or "").strip()
+    if text.startswith("~~~"):
+        text = re.sub(r"^~~~(?:json)?\\s*", "", text, flags=re.I)
+        text = re.sub(r"\\s*~~~$", "", text)
+    try:
+        json.loads(text)
+        return text
+    except json.JSONDecodeError:
+        match = re.search(r"\\{.*\\}", text, flags=re.S)
+        if not match:
+            raise LLMProviderError("Claude returned a response that did not contain valid story JSON.")
+        return match.group(0)
+
+
+class ClaudeCodeStoryProvider(StoryLLMProvider):
+    """Local-only provider that uses an authenticated Claude Code installation."""
+
+    name = "claude_code"
+
+    def __init__(self, *, model: str = DEFAULT_CLAUDE_CODE_MODEL):
+        executable = shutil.which("claude")
+        if not executable:
+            raise LLMProviderError(
+                "Claude Code is not installed or is not on PATH. Install Claude Code and sign in with your Claude subscription first."
+            )
+        self.executable = executable
+        self.model = model or DEFAULT_CLAUDE_CODE_MODEL
+
+    def generate(self, *, system_prompt: str, user_prompt: str) -> PaperStory:
+        schema = json.dumps(PaperStory.model_json_schema(), separators=(",", ":"))
+        prompt = (
+            f"{user_prompt}\\n\\n"
+            "Return ONLY one JSON object matching this JSON Schema exactly. "
+            "Do not wrap it in Markdown or add commentary.\\n\\n"
+            f"JSON SCHEMA:\\n{schema}"
+        )
+
+        env = os.environ.copy()
+        env.pop("ANTHROPIC_API_KEY", None)
+
+        command = [
+            self.executable,
+            "-p",
+            "--output-format",
+            "json",
+            "--max-turns",
+            "1",
+            "--model",
+            self.model,
+            "--system-prompt",
+            system_prompt,
+        ]
+
+        try:
+            completed = subprocess.run(
+                command,
+                input=prompt,
+                text=True,
+                capture_output=True,
+                timeout=240,
+                env=env,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise LLMProviderError("Claude Code timed out while generating the story.") from exc
+        except OSError as exc:
+            raise LLMProviderError(f"Claude Code could not be started: {exc}") from exc
+
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout or "").strip()
+            raise LLMProviderError(
+                "Claude Code generation failed. Make sure claude works in your terminal and is signed in to your Claude subscription."
+                + (f" Details: {detail[:600]}" if detail else "")
+            )
+
+        try:
+            wrapper = json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            raise LLMProviderError("Claude Code returned invalid wrapper JSON.") from exc
+
+        if wrapper.get("is_error"):
+            raise LLMProviderError(str(wrapper.get("result") or "Claude Code reported an error."))
+
+        result_text = wrapper.get("result")
+        if not isinstance(result_text, str):
+            raise LLMProviderError("Claude Code returned no story result.")
+
+        try:
+            return PaperStory.model_validate_json(_extract_json_object(result_text))
+        except Exception as exc:
+            raise LLMProviderError(f"Claude returned story JSON that did not match the required schema: {exc}") from exc
 
 
 class OpenAIStoryProvider(StoryLLMProvider):
