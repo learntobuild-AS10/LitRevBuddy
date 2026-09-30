@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
@@ -15,7 +16,8 @@ def click_button(at: AppTest, label: str) -> AppTest:
 
 class AppNavigationTest(unittest.TestCase):
     def test_primary_user_journey_has_no_streamlit_state_errors(self):
-        at = AppTest.from_file("app.py", default_timeout=120).run()
+        app_path = Path(__file__).resolve().parents[1] / "app.py"
+        at = AppTest.from_file(str(app_path), default_timeout=120).run()
         self.assertEqual(len(at.exception), 0, list(at.exception))
 
         # These buttons previously mutated widget-bound keys after
@@ -43,6 +45,14 @@ class AppNavigationTest(unittest.TestCase):
         at = click_button(at, "Read paper")
         self.assertEqual(len(at.exception), 0, list(at.exception))
         self.assertTrue(any(button.label == "← Back to search results" for button in at.button))
+
+        # Top-level navigation should also render without runtime errors.
+        nav = at.radio[0]
+        at = nav.set_value("Explore").run(timeout=120)
+        self.assertEqual(len(at.exception), 0, list(at.exception))
+
+        at = at.radio[0].set_value("About").run(timeout=120)
+        self.assertEqual(len(at.exception), 0, list(at.exception))
 
 
 if __name__ == "__main__":
