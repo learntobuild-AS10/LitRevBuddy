@@ -200,6 +200,28 @@ The results report an accuracy of 91.2% on Dataset X under the stated setup.
             self.assertTrue(all(len(item.split()) <= 12 for item in checked_card.bullets))
         self.assertLessEqual(len(checked.one_line_summary.split()), 24)
 
+
+    def test_provenance_tolerates_pdf_whitespace_and_hyphenation(self):
+        source = (
+            "The proposed multi-\nmodal framework aligns histology and genomics "
+            "in a shared latent space with 91.2% accuracy."
+        )
+        self.assertTrue(
+            evidence_is_supported(
+                "The proposed multimodal framework aligns histology and genomics in a shared latent space with 91.2% accuracy.",
+                source,
+            )
+        )
+
+    def test_provenance_rejects_materially_different_claim(self):
+        source = "The model reports 91.2% accuracy on Dataset X."
+        self.assertFalse(
+            evidence_is_supported(
+                "The model reports 99.9% accuracy on Dataset X.",
+                source,
+            )
+        )
+
     def test_miccai_author_extraction(self):
         html = """
         <html><body>
