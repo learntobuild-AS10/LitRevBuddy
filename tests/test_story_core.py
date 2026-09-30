@@ -143,6 +143,63 @@ The results report an accuracy of 91.2% on Dataset X under the stated setup.
         self.assertTrue(all(card.source_section == "abstract" for card in checked.flashcards))
 
 
+
+    def test_story_validation_enforces_card_length_limits(self):
+        source = PaperSource(
+            paper_id="2",
+            title="Concise Story Test",
+            authors="A. Author",
+            venue="ICML",
+            year=2026,
+            abstract="The method uses a compact routing mechanism and reports a supported result.",
+            source_kind="library",
+        )
+        parsed = parsed_from_abstract(source)
+        context = build_source_context(parsed)
+
+        verbose_headline = " ".join(["headline"] * 30)
+        verbose_body = " ".join(["body"] * 120)
+        verbose_bullet = " ".join(["bullet"] * 30)
+
+        card = StoryCard(
+            card_type="method",
+            eyebrow="Method",
+            headline=verbose_headline,
+            body=verbose_body,
+            bullets=[verbose_bullet, verbose_bullet, verbose_bullet, verbose_bullet],
+            visual_hint="mechanism",
+            source_section="abstract",
+            evidence="The method uses a compact routing mechanism and reports a supported result.",
+            claim_basis="paraphrase",
+            provenance_verified=False,
+        )
+        story = PaperStory(
+            paper_id="2",
+            title="Concise Story Test",
+            short_title="Concise Story Test",
+            authors="A. Author",
+            venue="ICML",
+            year=2026,
+            paper_url="",
+            pdf_url="",
+            one_line_summary=" ".join(["summary"] * 60),
+            cards=[card, card.model_copy(deep=True), card.model_copy(deep=True)],
+            key_concepts=["routing"],
+            flashcards=[],
+            generated_from=["abstract"],
+            source_quality="abstract",
+        )
+
+        checked = validate_story(story, parsed, context)
+
+        self.assertEqual(len(checked.cards), 3)
+        for checked_card in checked.cards:
+            self.assertLessEqual(len(checked_card.headline.split()), 16)
+            self.assertLessEqual(len(checked_card.body.split()), 80)
+            self.assertLessEqual(len(checked_card.bullets), 3)
+            self.assertTrue(all(len(item.split()) <= 16 for item in checked_card.bullets))
+        self.assertLessEqual(len(checked.one_line_summary.split()), 32)
+
     def test_miccai_author_extraction(self):
         html = """
         <html><body>
