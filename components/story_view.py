@@ -105,6 +105,7 @@ def _init_state() -> None:
     st.session_state.setdefault("story_source", None)
     st.session_state.setdefault("external_story_source", None)
     st.session_state.setdefault("uploaded_parsed_paper", None)
+    st.session_state.setdefault("uploaded_pdf_digest", None)
     st.session_state.setdefault("openrouter_session_key", "")
 
 
@@ -211,10 +212,13 @@ def _external_source_controls() -> None:
 
     url = st.text_input("Paper URL or DOI", key="external_paper_url", placeholder="https://arxiv.org/abs/... or 10.xxxx/...")
     if st.button("Load external paper", key="load_external_paper"):
+        st.session_state["external_story_source"] = None
+        st.session_state["uploaded_parsed_paper"] = None
+        st.session_state["active_story"] = None
+        st.session_state["story_card_index"] = 0
         try:
             source = fetch_page_metadata(url)
             st.session_state["external_story_source"] = source.model_dump()
-            st.session_state["uploaded_parsed_paper"] = None
         except FetchError as exc:
             st.error(str(exc))
 
@@ -245,6 +249,10 @@ def _external_source_controls() -> None:
             st.error(f"Uploaded PDFs are limited to {MAX_PDF_BYTES // (1024 * 1024)} MB.")
         else:
             digest = sha256_bytes(data)
+            if st.session_state.get("uploaded_pdf_digest") != digest:
+                st.session_state["uploaded_pdf_digest"] = digest
+                st.session_state["active_story"] = None
+                st.session_state["story_card_index"] = 0
             upload_cache_key = f"upload:{digest}"
             parsed_dump = st.session_state["paper_parse_cache"].get(upload_cache_key)
             if parsed_dump is None:
