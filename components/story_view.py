@@ -250,7 +250,12 @@ def _generate(parsed: ParsedPaper) -> None:
     if key in cache:
         story = PaperStory.model_validate(cache[key])
     else:
-        with st.spinner(f"Building a source-grounded paper story with {provider_choice}..."):
+        spinner_text = (
+            "Generating story… Free models can take up to about a minute."
+            if provider_name == "openrouter"
+            else "Generating source-grounded story…"
+        )
+        with st.spinner(spinner_text):
             story = generate_story(parsed, provider)
         cache[key] = story.model_dump()
         if using_shared_openrouter:
