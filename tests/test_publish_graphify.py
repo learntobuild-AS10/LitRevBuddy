@@ -13,7 +13,7 @@ class GraphifyPublisherTests(unittest.TestCase):
                     "id": "paper_a",
                     "label": "Paper A",
                     "file_type": "paper",
-                    "source_file": "/Users/alice/private/papers/paper-a.pdf",
+                    "source_file": "/Users/alice/private/papers/7230__paper-a.pdf",
                     "source_url": "file:///Users/alice/private/papers/paper-a.pdf",
                     "community": 2,
                 },
@@ -41,11 +41,13 @@ class GraphifyPublisherTests(unittest.TestCase):
         clean = sanitize_graph(raw)
         validate_no_local_paths(clean)
 
-        self.assertEqual(clean["nodes"][0]["source_file"], "paper-a.pdf")
+        self.assertEqual(clean["nodes"][0]["source_file"], "7230__paper-a.pdf")
+        self.assertEqual(clean["nodes"][0]["litrevbuddy_id"], 7230)
         self.assertEqual(clean["nodes"][0]["source_url"], "")
         self.assertEqual(clean["nodes"][1]["source_file"], "paper-b.pdf")
+        self.assertIsNone(clean["nodes"][1]["litrevbuddy_id"])
         self.assertEqual(clean["nodes"][1]["source_url"], "https://arxiv.org/abs/1234.5678")
-        self.assertEqual(clean["edges"][0]["source_file"], "paper-a.pdf")
+        self.assertEqual(clean["edges"][0]["source_file"], "7230__paper-a.pdf")
         self.assertEqual(clean["edges"][0]["relation"], "cites")
 
         encoded = json.dumps(clean)
