@@ -431,8 +431,7 @@ def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
                     placeholder="sk-or-v1-…",
                     help="Used only for this browser session and never written to the repository.",
                 )
-                if personal_key:
-                    st.session_state["openrouter_session_key"] = personal_key.strip()
+                st.session_state["openrouter_session_key"] = personal_key.strip()
             else:
                 st.caption(
                     "OpenRouter offers a free model router. Create a free API key, paste it below, "
@@ -445,8 +444,7 @@ def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
                     placeholder="sk-or-v1-…",
                     help="This value is kept in Streamlit session state only.",
                 )
-                if personal_key:
-                    st.session_state["openrouter_session_key"] = personal_key.strip()
+                st.session_state["openrouter_session_key"] = personal_key.strip()
                 st.markdown("[Create a free OpenRouter key ↗](https://openrouter.ai/keys)")
         elif st.session_state["story_provider_choice"] == "Claude subscription (local)":
             st.caption(
