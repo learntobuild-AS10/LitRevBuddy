@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a reproducible problem in LitRevBuddy
+title: "[Bug] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting a problem. Do not include API keys or private data.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      placeholder: Describe the problem clearly.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: Chrome 154 on macOS, Safari on iPhone, etc.
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or additional context
