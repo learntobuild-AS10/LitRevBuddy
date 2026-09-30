@@ -198,14 +198,17 @@ No PDFs are required for the default workflow. Export the selected LitRevBuddy r
 ```bash
 python scripts/export_graphify_corpus.py \
   --citation-graph web/data/citation-graph/graph.json \
-  --output "$HOME/Documents/LitRevBuddy-Graphify-Corpus" \
+  --output "$HOME/Documents/LitRevBuddy-Graphify-Corpus-v2" \
+  --knowledge-only \
   --clean-output
 ```
+
+In `--knowledge-only` mode, each Graphify input contains only the paper title, LitRevBuddy ID, venue, year, authors, topic label, and the full catalog abstract. Citation/reference lists are intentionally omitted because bibliographic relationships belong to the separate Citation Map.
 
 Then run Graphify locally through Claude Code on that external folder:
 
 ```text
-/graphify ~/Documents/LitRevBuddy-Graphify-Corpus
+/graphify ~/Documents/LitRevBuddy-Graphify-Corpus-v2
 ```
 
 The corpus remains outside Git. Raw Graphify output should not be committed. Once the first real output has been validated, it can be sanitized and published as the separate **Explore → Knowledge map** dataset.
