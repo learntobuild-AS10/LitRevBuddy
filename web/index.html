@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0b0d10" />
   <meta name="description" content="Search, understand, and connect recent AI research." />
+  <meta name="referrer" content="no-referrer" />
   <title>LitRevBuddy — Find the paper. Get the idea. Follow the thread.</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./styles.css" />
@@ -116,7 +117,7 @@
       <div class="page-hero compact">
         <div class="eyebrow">Your library</div>
         <h1>Keep the thread.</h1>
-        <p>Saved papers stay in this browser. No account required.</p>
+        <p>Saved papers and reading history exist only for this open page. Refresh or close it and they are gone. No account required.</p>
       </div>
       <div id="savedList" class="paper-list"></div>
       <div id="recentSection" class="recent-section">
@@ -144,6 +145,18 @@
       </div>
 
       <div id="coverageStats" class="stats-grid"></div>
+
+      <section class="privacy-card">
+        <div class="eyebrow">Privacy by design</div>
+        <h2>No account. No analytics. No subscription.</h2>
+        <p>LitRevBuddy does not operate a user database, set cookies, run analytics, create accounts, sell data, or enroll visitors in subscriptions. Search terms, saved papers, reading history, and API keys are kept only in page memory and disappear when the page is refreshed or closed.</p>
+        <p>GitHub Pages hosts this static site. External paper links and the optional OpenRouter AI mode are third-party services with their own privacy practices. AI mode never runs without an explicit user action.</p>
+        <div class="legal-links">
+          <a href="./privacy.html">Privacy notice</a>
+          <a href="./terms.html">Terms & research-use notice</a>
+        </div>
+      </section>
+
       <div class="shortcut-card">
         <h3>Keyboard</h3>
         <div><kbd>/</kbd><span>Focus search</span></div>
@@ -181,9 +194,10 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <footer class="site-footer">
-    <div class="shell">
+    <div class="shell footer-inner">
       <span>LitRevBuddy</span>
       <span>Research discovery without dark patterns.</span>
+      <span class="footer-links"><a href="./privacy.html">Privacy</a><a href="./terms.html">Terms</a></span>
     </div>
   </footer>
 
