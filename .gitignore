@@ -3,14 +3,15 @@ __pycache__/
 *.pyc
 .DS_Store
 .ipynb_checkpoints/
-.streamlit/secrets.toml
 
-# Local database is too large for GitHub
+# Local source database
 data/papers.db
 
-# Paper Stories runtime/user data must remain local/session-scoped
-.story_cache/
+# Local/generated runtime files
 cache/
 uploads/
 *.mp4
 *.pdf
+
+# Local web build/runtime artifacts
+web/vendor/
