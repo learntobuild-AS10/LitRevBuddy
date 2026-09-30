@@ -147,3 +147,75 @@ LitRevBuddy/
 GitHub Pages is the primary application. The previous Streamlit implementation is retained only on `legacy/streamlit-app` for historical reference and rollback.
 
 Issues and feature requests should be opened through the repository templates. Pull requests should target `main` and must pass CI before merge.
+
+## Research graphs
+
+LitRevBuddy separates bibliographic and semantic relationships instead of treating them as the same graph.
+
+### Citation map
+
+The citation map is built from explicit paper references returned by the Semantic Scholar Academic Graph API. For the initial 30-paper multimodal-medical-AI pilot:
+
+```bash
+python scripts/build_citation_graph.py
+```
+
+The script:
+
+- resolves each selected LitRevBuddy paper against Semantic Scholar using closest-title matching
+- rejects weak matches while allowing exact-title version/year mismatches to be flagged explicitly
+- fetches references for each resolved paper
+- preserves direct citation edges among selected LitRevBuddy papers
+- in the default `expanded` mode, also adds external papers cited by at least two selected seed papers
+- labels selected LitRevBuddy papers as seed nodes and shared cited papers as external-reference nodes
+- writes `web/data/citation-graph/graph.json`
+
+The default expanded graph keeps citation semantics intact: every displayed edge is still an explicit `paper → cites → paper` relationship. It does not invent similarity edges or ask an LLM to infer citations.
+
+For the strict closed 30-paper graph instead:
+
+```bash
+python scripts/build_citation_graph.py --mode core
+```
+
+For the expanded citation neighborhood:
+
+```bash
+python scripts/build_citation_graph.py \
+  --mode expanded \
+  --min-shared-reference-seeds 2 \
+  --max-external-nodes 150
+```
+
+Set `S2_API_KEY` if you have a Semantic Scholar API key. The script can run without one, but intentionally uses a slower request cadence and retries rate limits.
+
+### Knowledge map with Graphify
+
+Graphify is reserved for the semantic layer: concepts, methods, datasets, tasks, and other relationships that are not ordinary bibliographic citation edges.
+
+No PDFs are required for the default workflow. Export the selected LitRevBuddy records as Markdown containing title, authors, venue/year, abstract, topic, and verified citations:
+
+```bash
+python scripts/export_graphify_corpus.py \
+  --citation-graph web/data/citation-graph/graph.json \
+  --output "$HOME/Documents/LitRevBuddy-Graphify-Corpus-v2" \
+  --knowledge-only \
+  --clean-output
+```
+
+In `--knowledge-only` mode, each Graphify input contains only the paper title, LitRevBuddy ID, venue, year, authors, topic label, and the full catalog abstract. Citation/reference lists are intentionally omitted because bibliographic relationships belong to the separate Citation Map.
+
+Then run Graphify locally through Claude Code on that external folder:
+
+```text
+/graphify ~/Documents/LitRevBuddy-Graphify-Corpus-v2
+```
+
+The corpus remains outside Git. Raw Graphify output should not be committed. Once the first real output has been validated, it can be sanitized and published as the separate **Explore → Knowledge map** dataset.
+
+This produces three distinct research-navigation views:
+
+- **Topics**: cluster-level themes learned by LitRevBuddy
+- **Topic map**: semantic similarity between papers
+- **Citation map**: explicit bibliographic dependencies
+- **Knowledge map**: Graphify semantic relationships
