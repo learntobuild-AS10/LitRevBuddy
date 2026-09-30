@@ -15,7 +15,7 @@ from components.ui import (
     render_result_preview,
     render_tip,
 )
-from services.similarity import get_similar_papers, query_scores
+from services.similarity import clean_text, get_similar_papers, query_scores
 from utils.navigation import apply_pending_state_updates, queue_state_updates
 
 
@@ -145,7 +145,7 @@ if navigation == "Search":
         action_a, action_b, action_c = st.columns([1.35, 1.1, 3])
         if action_a.button("✨ Understand this paper", type="primary", use_container_width=True):
             _open_story(selected)
-        pdf_url = str(selected.get("pdf_url", "") or "").strip()
+        pdf_url = clean_text(selected.get("pdf_url", ""))
         if pdf_url:
             action_b.markdown(f"[Open PDF ↗]({pdf_url})")
 
@@ -277,8 +277,8 @@ if navigation == "Search":
                         _open_story(row)
 
                     links = []
-                    paper_url = str(row.get("paper_url", "") or "").strip()
-                    pdf_url = str(row.get("pdf_url", "") or "").strip()
+                    paper_url = clean_text(row.get("paper_url", ""))
+                    pdf_url = clean_text(row.get("pdf_url", ""))
                     if paper_url:
                         links.append(f"[Page ↗]({paper_url})")
                     if pdf_url:
