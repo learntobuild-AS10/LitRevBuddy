@@ -7,3 +7,10 @@ __pycache__/
 
 # Local database is too large for GitHub
 data/papers.db
+
+# Paper Stories runtime/user data must remain local/session-scoped
+.story_cache/
+cache/
+uploads/
+*.mp4
+*.pdf
