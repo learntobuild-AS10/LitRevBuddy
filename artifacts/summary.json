@@ -1,5 +1,5 @@
 {
-  "num_papers": 59627,
+  "num_papers": 67343,
   "num_clusters": 120,
   "num_components": 128,
   "venues": [
@@ -9,6 +9,7 @@
     "ICCV",
     "ICLR",
     "ICML",
+    "MICCAI",
     "NeurIPS",
     "WACV"
   ],
