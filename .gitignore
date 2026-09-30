@@ -15,3 +15,7 @@ uploads/
 
 # Local web build/runtime artifacts
 web/vendor/
+
+# Local Graphify working output; publish only sanitized graph JSON
+graphify-out/
+graphify-input/
