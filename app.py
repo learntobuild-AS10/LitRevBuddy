@@ -218,8 +218,7 @@ if navigation == "Search":
                 "Minimum relevance",
                 0.0,
                 1.0,
-                float(st.session_state.get("min_score", 0.0)),
-                0.01,
+                step=0.01,
                 key="min_score",
                 disabled=not bool(query.strip()),
                 help="Advanced control. Most searches work best at 0.",
@@ -295,9 +294,15 @@ elif navigation == "Explore":
         "Browse automatically discovered research themes or switch to the topic map to see how papers sit near one another.",
     )
 
+    if "explore_query" not in st.session_state:
+        st.session_state["explore_query"] = st.session_state.get("global_query", "")
+    if "explore_venues" not in st.session_state:
+        st.session_state["explore_venues"] = st.session_state.get("filter_venues", venues)
+    if "explore_years" not in st.session_state:
+        st.session_state["explore_years"] = st.session_state.get("filter_years", years)
+
     explore_query = st.text_input(
         "Search within Explore",
-        value=st.session_state.get("global_query", ""),
         placeholder="Focus Explore on a topic, or leave blank for the full recent library",
         key="explore_query",
     )
@@ -308,13 +313,11 @@ elif navigation == "Explore":
         explore_venues = explore_a.multiselect(
             "Venues",
             venues,
-            default=st.session_state.get("filter_venues", venues),
             key="explore_venues",
         )
         explore_years = explore_b.multiselect(
             "Years",
             years,
-            default=st.session_state.get("filter_years", years),
             key="explore_years",
         )
 
