@@ -49,21 +49,53 @@ Stories are labeled as either Abstract-based summary or Full-paper summary. The 
 
 ## LLM configuration
 
-Paper Stories uses a provider abstraction. The initial provider is OpenAI and uses structured outputs through the Responses API.
+Paper Stories uses a provider abstraction rather than coupling the story schema to one model vendor.
 
-No key is hardcoded. Configure Streamlit Community Cloud secrets or environment variables:
+### Local Claude subscription testing
+
+When LitRevBuddy is run locally and the Claude Code CLI is available on PATH, Story Mode offers:
+
+    Claude subscription (local)
+
+This path invokes Claude Code in non-interactive print mode and uses the Claude account already authenticated on that computer. It is intended for the developer testing LitRevBuddy locally, not as authentication for a public hosted deployment.
+
+Verify Claude Code first:
+
+    claude --version
+    claude
+
+If needed, sign in to Claude Code with the same Claude Pro/Max credentials used for Claude. Then run LitRevBuddy from the same terminal environment.
+
+The default Claude Code model alias is:
+
+    CLAUDE_CODE_MODEL = "sonnet"
+
+This setting is optional. The local provider removes ANTHROPIC_API_KEY from the Claude subprocess environment so an API key does not accidentally override subscription authentication during this test path.
+
+### OpenAI API
+
+OpenAI remains available as a separate provider. No key is hardcoded. Configure environment variables or Streamlit Community Cloud secrets:
 
     OPENAI_API_KEY = "..."
     OPENAI_MODEL = "gpt-5.6-luna"
 
-OPENAI_MODEL is optional; gpt-5.6-luna is the default. If OPENAI_API_KEY is absent, search, maps, clusters, paper deep dive, and similarity continue to work. The Stories view shows a configuration message instead of crashing the app.
+OPENAI_MODEL is optional; gpt-5.6-luna is the default.
+
+If no paid provider is configured, search, maps, clusters, paper deep dive, and similarity continue to work normally.
 
 ## Run locally
+
+    git checkout feature/paper-stories
+    git pull origin feature/paper-stories
 
     python3 -m venv .venv
     source .venv/bin/activate
     pip install -r requirements.txt
+
+    claude --version
     streamlit run app.py
+
+Open the local Streamlit URL, go to Stories, and select Claude subscription (local). No Anthropic API key is required for this local testing path.
 
 ## Build feature artifacts
 
