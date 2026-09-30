@@ -1,4 +1,7 @@
 import unittest
+
+import numpy as np
+import requests
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -6,8 +9,9 @@ from bs4 import BeautifulSoup
 
 from models.story import PaperSource, PaperStory, StoryCard, StudyFlashcard
 from services.llm_provider import OpenRouterStoryProvider
-from services.paper_fetcher import normalize_user_url, resolve_pdf_url
+from services.paper_fetcher import FetchError, _request_with_safe_redirects, normalize_user_url, resolve_pdf_url
 from services.paper_parser import extract_sections, parsed_from_abstract
+from services.similarity import clean_text
 from services.story_generator import build_source_context, evidence_is_supported, validate_story
 from utils.caching import story_cache_key
 from scripts.ingest_miccai import extract_authors as extract_miccai_authors
@@ -170,7 +174,7 @@ The results report an accuracy of 91.2% on Dataset X under the stated setup.
         response = SimpleNamespace(
             choices=[
                 SimpleNamespace(
-                    message=SimpleNamespace(content=story.model_dump_json())
+                    message=SimpleNamespace(content=f"\`\`\`json\\n{story.model_dump_json()}\\n\`\`\`")
                 )
             ]
         )
@@ -192,6 +196,19 @@ The results report an accuracy of 91.2% on Dataset X under the stated setup.
         self.assertEqual(parsed.title, "Example Paper")
         self.assertEqual(parsed.source_quality, "abstract")
         self.assertEqual(len(parsed.cards), 1)
+
+
+    def test_missing_text_values_do_not_render_as_nan(self):
+        self.assertEqual(clean_text(None), "")
+        self.assertEqual(clean_text(np.nan), "")
+
+    def test_network_timeout_is_wrapped_as_fetch_error(self):
+        with patch("services.paper_fetcher._assert_public_host"), patch(
+            "services.paper_fetcher.requests.Session.get",
+            side_effect=requests.Timeout("timed out"),
+        ):
+            with self.assertRaises(FetchError):
+                _request_with_safe_redirects("https://example.org/paper", stream=True)
 
     def test_cache_key_changes_with_mode(self):
         a = story_cache_key(source_fingerprint="abc", provider="openai", model="m", mode="abstract")
