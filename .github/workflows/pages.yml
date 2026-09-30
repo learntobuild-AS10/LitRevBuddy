@@ -1,0 +1,91 @@
+name: deploy-pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install catalog build dependencies
+        run: python -m pip install pandas==3.0.6 pyarrow==25.0.1
+
+      - name: Build browser catalog
+        run: python scripts/build_web_catalog.py --input artifacts/papers_features.parquet --output web/data
+
+      - name: Vendor browser PDF parser
+        run: |
+          npm install --no-save pdfjs-dist@4.10.38
+          mkdir -p web/vendor
+          cp node_modules/pdfjs-dist/build/pdf.mjs web/vendor/pdf.mjs
+          cp node_modules/pdfjs-dist/build/pdf.worker.mjs web/vendor/pdf.worker.mjs
+
+      - name: Validate frontend JavaScript
+        run: node --check web/app.js
+
+      - name: Validate generated catalog
+        run: |
+          test -f web/data/manifest.json
+          test -f web/data/index-2026.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("web/data/manifest.json").read_text())
+          assert manifest["num_papers"] == 67343, manifest
+          assert 2026 in manifest["years"], manifest
+          print(manifest)
+          PY
+
+      - name: Enforce privacy invariants
+        run: |
+          if grep -En 'localStorage|sessionStorage|indexedDB|document\.cookie' web/app.js; then
+            echo "Persistent browser storage or cookies are not allowed in the public app."
+            exit 1
+          fi
+          if grep -En "<script[^>]+src=['\"]https?://" web/*.html; then
+            echo "Third-party script tags are not allowed."
+            exit 1
+          fi
+          if grep -Ein 'google-analytics|gtag\(|segment\.com|mixpanel|posthog|stripe|paddle|lemonsqueezy|paypal' web/app.js web/index.html; then
+            echo "Analytics, payment, or subscription SDKs are not allowed."
+            exit 1
+          fi
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: web
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

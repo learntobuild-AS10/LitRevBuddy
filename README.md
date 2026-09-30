@@ -1,88 +1,125 @@
-# AI Paper Explorer
+# LitRevBuddy
 
-AI Paper Explorer is an interactive Streamlit app for exploring recent papers from major AI conferences.
+LitRevBuddy is a static-first research discovery app for finding, understanding, and connecting recent AI papers.
 
-## Features
+**Live site:** https://learntobuild-as10.github.io/LitRevBuddy/
 
-- Topic search across paper titles and abstracts
-- Venue and year filtering
-- Cluster-based browsing
-- 2D topic map visualization
-- Similar-paper discovery
+The current catalog contains **67,343 papers** across AAAI, ACL, CVPR, ICCV, ICLR, ICML, MICCAI, NeurIPS, and WACV, covering 2024–2026. The research-data pipeline remains Python-based; the public product is plain HTML/CSS/JavaScript deployed through GitHub Pages.
 
-## Current Database Coverage
+## Product
 
-The current database contains 59,627 papers from:
+- Fast browser-side search across titles, abstracts, authors, venues, and topic neighborhoods
+- Year and venue filters
+- Daily five-paper research stack
+- "Surprise me" discovery
+- Centered paper detail modal with abstract, original-paper links, and related work
+- Topic browser and interactive 2D research map
+- Quick Story: richer source-grounded cards from the abstract
+- Deep Story: in-browser PDF parsing for method, data, results, ablations, and limitations
+- Optional AI Story using a visitor-supplied OpenRouter key
+- Temporary saved-paper and reading-trail state for the current page only
+- Responsive desktop, tablet, and mobile layout
+- Dark/light mode and keyboard navigation
+- Privacy and research-use notices included in the public site
 
-- AAAI 2024 to 2026
-- ACL 2024 to 2026
-- CVPR 2024 to 2026
-- ICCV 2025
-- ICLR 2024 to 2026
-- ICML 2024 to 2025
-- NeurIPS 2024 to 2025
-- WACV 2024 to 2026
+## Architecture
 
-## Example Searches
+```text
+data/papers.db (local source of truth)
+        |
+        v
+Python ingestion + feature build
+        |
+        v
+artifacts/papers_features.parquet
+        |
+        v
+scripts/build_web_catalog.py
+        |
+        v
+web/data/*.json
+        |
+        v
+GitHub Pages
+```
 
-- lightweight vision language models
-- medical image segmentation
-- mamba vision
-- multimodal fusion
-- retrieval augmented generation
-- survival prediction
-- diffusion restoration
-- test time adaptation
+The public frontend lives in `web/` and does not require a Python web server.
 
-## Run Locally
+## Privacy model
 
-Create and activate a virtual environment:
+LitRevBuddy is intentionally stateless with respect to visitors.
 
-    python3 -m venv .venv
-    source .venv/bin/activate
+- No LitRevBuddy accounts
+- No analytics SDK
+- No advertising trackers
+- No payment or subscription system
+- No cookies
+- No localStorage, sessionStorage, or IndexedDB for user activity
+- Search state, saves, reading history, uploaded PDFs, extracted PDF text, and API keys stay only in current page memory
+- Uploaded PDFs are parsed in the browser and are not persisted by LitRevBuddy
+- AI Story is optional and requires explicit confirmation before source text is sent directly to OpenRouter
 
-Install dependencies:
+See `web/privacy.html` and `web/terms.html` for the public notices.
 
-    pip install -r requirements.txt
+## Local development
 
-Run the app:
+Create an environment and install the data-pipeline dependencies:
 
-    streamlit run app.py
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-## Build Feature Artifacts
+Build the browser catalog:
 
-After updating the database, rebuild the search and clustering artifacts:
+```bash
+python scripts/build_web_catalog.py --input artifacts/papers_features.parquet --output web/data
+```
 
-    python scripts/build_features.py
+Serve the static site:
 
-## Project Structure
+```bash
+python -m http.server 8000 -d web
+```
 
-    paper-database/
-      app.py
-      requirements.txt
-      README.md
-      data/
-        papers.db
-      artifacts/
-        papers_features.parquet
-        paper_vectors.npz
-        tfidf_vectorizer.joblib
-        svd_model.joblib
-        kmeans_model.joblib
-        cluster_labels.joblib
-        summary.json
-      scripts/
-        ingest_cvf.py
-        ingest_acl.py
-        ingest_aaai.py
-        ingest_icml_pmlr.py
-        ingest_neurips.py
-        build_features.py
+Then open `http://localhost:8000`.
+
+Deep Story uses PDF.js. The GitHub Pages workflow vendors the pinned PDF.js build into the deployment artifact.
+
+## Updating the paper database
+
+The local SQLite database remains the metadata source of truth and is intentionally not committed.
+
+```bash
+python scripts/update_database.py
+python scripts/update_database.py --limit 5
+python scripts/update_database.py --venues icml
+python scripts/update_database.py --venues miccai
+```
+
+## Rebuilding research artifacts
+
+After validating the database:
+
+```bash
+python scripts/build_features.py
+```
+
+Or ingest and rebuild together:
+
+```bash
+python scripts/update_database.py --rebuild
+```
+
+This regenerates the Parquet metadata, TF-IDF model, 128-dimensional SVD vectors, clusters, nearest-neighbor index, and topic-map coordinates.
 
 ## Deployment
 
-This app is designed to run on Streamlit Community Cloud. GitHub Pages only supports static sites, so the Streamlit app itself should be deployed through Streamlit Community Cloud using this repository.
+`.github/workflows/pages.yml` builds the browser catalog, validates the frontend, vendors PDF.js, enforces privacy invariants, and deploys `web/` to GitHub Pages on pushes to `main`.
 
-## Notes
+The former Streamlit implementation is preserved on the `legacy/streamlit-app` branch for rollback/reference. It is no longer the primary application.
 
-The database and derived artifacts are built from public conference and proceedings metadata. The app is intended for literature exploration, topic discovery, and research planning.
+## CI
+
+`.github/workflows/test.yml` checks the Python data pipeline, browser catalog, frontend JavaScript, required public files, catalog counts, and privacy invariants.
