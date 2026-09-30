@@ -5,6 +5,7 @@ on:
     branches:
       - feature/paper-stories
       - feature/ux-refresh
+      - public/free-demo
   pull_request:
 
 jobs:
