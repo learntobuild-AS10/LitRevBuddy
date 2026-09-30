@@ -117,6 +117,8 @@ The results report an accuracy of 91.2% on Dataset X under the stated setup.
         self.assertEqual(len(checked.cards), 3)
         self.assertTrue(all(card.provenance_verified for card in checked.cards))
         self.assertEqual(checked.title, "Example Paper")
+        self.assertTrue(all(card.source_section == "abstract" for card in checked.cards))
+        self.assertTrue(all(card.source_section == "abstract" for card in checked.flashcards))
 
 
     def test_miccai_author_extraction(self):
