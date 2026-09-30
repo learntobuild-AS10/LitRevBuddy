@@ -155,19 +155,15 @@ def inject_global_styles() -> None:
 
 
 def render_app_header(paper_count: int) -> None:
-    st.html(
-        f"""
-        <div class="lrb-hero">
-          <div class="lrb-brand-row">
-            <div class="lrb-brand">LitRevBuddy</div>
-            <div class="lrb-badge">{paper_count:,} indexed papers</div>
-          </div>
-          <div class="lrb-tagline">
-            Search recent AI research, understand where a paper fits, find related work,
-            and turn dense papers into source-grounded study stories.
-          </div>
-        </div>
-        """
+    title_col, count_col = st.columns([1.35, 4.65], vertical_alignment="center")
+    with title_col:
+        st.title("LitRevBuddy")
+    with count_col:
+        st.caption(f"{paper_count:,} indexed papers")
+
+    st.markdown(
+        "Search recent AI research, understand where a paper fits, find related work, "
+        "and turn dense papers into source-grounded study stories."
     )
 
 
