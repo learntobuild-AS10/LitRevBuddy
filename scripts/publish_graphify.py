@@ -21,7 +21,7 @@ def _safe_source_file(value: object) -> str:
 
 def _litrevbuddy_id_from_source(value: object) -> int | None:
     name = _safe_source_file(value)
-    match = re.match(r"^(\\d+)__", name)
+    match = re.match(r"^(\d+)__", name)
     return int(match.group(1)) if match else None
 
 
