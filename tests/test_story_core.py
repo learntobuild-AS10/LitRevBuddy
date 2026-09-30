@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 
 from models.story import PaperSource, PaperStory, StoryCard, StudyFlashcard
 from services.llm_provider import OpenRouterStoryProvider
-from services.paper_fetcher import FetchError, _request_with_safe_redirects, normalize_user_url, resolve_pdf_url
+from services.paper_fetcher import FetchError, _request_with_safe_redirects, fetch_page_metadata, normalize_user_url, resolve_pdf_url
 from services.paper_parser import extract_sections, parsed_from_abstract
 from services.similarity import clean_text
 from services.story_generator import build_source_context, evidence_is_supported, validate_story
@@ -27,6 +27,28 @@ class StoryCoreTests(unittest.TestCase):
             resolve_pdf_url("https://openreview.net/forum?id=abc123"),
             "https://openreview.net/pdf?id=abc123",
         )
+
+
+    def test_arxiv_page_keeps_metadata_and_pdf_fallback(self):
+        html = b"""<html><head>
+        <meta name="citation_title" content="Example arXiv Paper">
+        <meta name="citation_author" content="A. Author">
+        <meta name="citation_abstract" content="A sufficiently useful abstract for a quick story.">
+        </head><body></body></html>"""
+        response = SimpleNamespace(
+            headers={"Content-Type": "text/html"},
+            url="https://arxiv.org/abs/2401.12345",
+            encoding="utf-8",
+            iter_content=lambda chunk_size: [html],
+            close=lambda: None,
+        )
+        with patch("services.paper_fetcher._request_with_safe_redirects", return_value=response):
+            source = fetch_page_metadata("https://arxiv.org/abs/2401.12345")
+
+        self.assertEqual(source.title, "Example arXiv Paper")
+        self.assertEqual(source.authors, "A. Author")
+        self.assertIn("useful abstract", source.abstract)
+        self.assertEqual(source.pdf_url, "https://arxiv.org/pdf/2401.12345.pdf")
 
     def test_doi_normalization(self):
         self.assertEqual(
