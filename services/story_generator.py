@@ -25,13 +25,13 @@ SECTION_BUDGETS = {
 }
 MAX_CONTEXT_CHARS = 85_000
 
-CARD_HEADLINE_MAX_WORDS = 16
-CARD_BODY_MAX_WORDS = 80
-CARD_BULLET_MAX_WORDS = 16
+CARD_HEADLINE_MAX_WORDS = 14
+CARD_BODY_MAX_WORDS = 65
+CARD_BULLET_MAX_WORDS = 12
 CARD_MAX_BULLETS = 3
-SUMMARY_MAX_WORDS = 32
+SUMMARY_MAX_WORDS = 24
 FLASHCARD_QUESTION_MAX_WORDS = 26
-FLASHCARD_ANSWER_MAX_WORDS = 50
+FLASHCARD_ANSWER_MAX_WORDS = 40
 
 SYSTEM_PROMPT = """You turn research papers into compact technical story cards for researchers.
 
@@ -42,9 +42,9 @@ Accuracy rules are strict:
 4. claim_basis must be paper_stated when the card reports an explicit claim, paraphrase when it restates supported source content, or interpretation only for a cautious interpretation anchored in the evidence.
 5. If the source does not support a card type, omit it. In particular, abstract-only sources often do not support detailed experiment, results, or limitation cards.
 6. Prefer 6-8 cards for full papers and 4-6 cards for abstract-only sources, but never pad the story.
-7. Write for a swipe card, not a paper summary. Headline: 8-16 words. Body: 45-80 words, ideally 2-3 sentences. Use at most 3 bullets, each under 16 words.
+7. Write for a swipe card, not a paper summary. Headline: 6-14 words. Body: 35-65 words, ideally 2-3 sentences. Use at most 3 bullets, each under 12 words.
 8. Make every sentence earn its place. Remove setup phrases, repetition, generic praise, and details that do not change the reader's mental model.
-9. Keep the one-line summary under 32 words. Flashcard answers should usually be 1-3 sentences.
+9. Keep the one-line summary under 24 words. Flashcard answers should usually be 1-2 short sentences.
 10. Preserve exact numeric values when used.
 11. Set provenance_verified=false for every card and flashcard. The application will verify evidence after generation.
 12. The story must help a technically literate reader understand the problem, gap, central idea, mechanism, evidence, and limitations where those are actually supported.
