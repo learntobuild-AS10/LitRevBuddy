@@ -12,9 +12,11 @@ from models.story import PaperSource, PaperStory, ParsedPaper
 from services.llm_provider import (
     DEFAULT_CLAUDE_CODE_MODEL,
     DEFAULT_OPENAI_MODEL,
+    DEFAULT_OPENROUTER_MODEL,
     ClaudeCodeStoryProvider,
     LLMProviderError,
     OpenAIStoryProvider,
+    OpenRouterStoryProvider,
     claude_code_available,
 )
 from services.paper_fetcher import FetchError, MAX_PDF_BYTES, fetch_page_metadata, fetch_pdf_bytes
@@ -102,6 +104,7 @@ def _init_state() -> None:
     st.session_state.setdefault("story_source", None)
     st.session_state.setdefault("external_story_source", None)
     st.session_state.setdefault("uploaded_parsed_paper", None)
+    st.session_state.setdefault("openrouter_session_key", "")
 
 
 def _parse_full_paper(source: PaperSource) -> ParsedPaper:
@@ -121,24 +124,36 @@ def _parse_full_paper(source: PaperSource) -> ParsedPaper:
 
 
 def _generate(parsed: ParsedPaper) -> None:
-    provider_choice = st.session_state.get("story_provider_choice", "OpenAI API")
+    provider_choice = st.session_state.get("story_provider_choice", "Free public · OpenRouter")
 
     if provider_choice == "Claude subscription (local)":
         model = _config("CLAUDE_CODE_MODEL", DEFAULT_CLAUDE_CODE_MODEL)
         provider_name = "claude_code"
         provider = ClaudeCodeStoryProvider(model=model)
-    else:
+    elif provider_choice == "OpenAI API":
         api_key = _config("OPENAI_API_KEY")
         model = _config("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
         provider_name = "openai"
         if not api_key:
-            st.info(
-                "OpenAI API is selected, but OPENAI_API_KEY is not configured. "
-                "Choose Claude subscription (local) when running on a computer with Claude Code, "
-                "or add an OpenAI API key."
-            )
+            st.info("OpenAI API is selected, but OPENAI_API_KEY is not configured.")
             return
         provider = OpenAIStoryProvider(api_key=api_key, model=model)
+    else:
+        api_key = _config("OPENROUTER_API_KEY") or st.session_state.get("openrouter_session_key", "").strip()
+        model = _config("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
+        provider_name = "openrouter"
+        if not api_key:
+            st.info(
+                "Free public generation needs an OpenRouter key. "
+                "Add a free key in Generation settings; it stays only in this browser session."
+            )
+            return
+        provider = OpenRouterStoryProvider(
+            api_key=api_key,
+            model=model,
+            site_url=_config("APP_URL"),
+            site_name="LitRevBuddy",
+        )
 
     source_fingerprint = sha256_text(parsed.full_text + "\n" + parsed.source.title)
     key = story_cache_key(
@@ -371,10 +386,14 @@ def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
         "Choose a paper, decide how much source text to use, then generate verified cards for the problem, method, evidence, limitations, and takeaways.",
     )
 
-    provider_options = []
+    provider_options = ["Free public · OpenRouter"]
     if claude_code_available():
         provider_options.append("Claude subscription (local)")
-    provider_options.append("OpenAI API")
+    if _config("OPENAI_API_KEY"):
+        provider_options.append("OpenAI API")
+
+    if st.session_state.get("story_provider_choice") not in provider_options:
+        st.session_state["story_provider_choice"] = provider_options[0]
 
     with st.expander("Generation settings", expanded=False):
         st.radio(
@@ -384,12 +403,43 @@ def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
             key="story_provider_choice",
         )
 
-        if st.session_state["story_provider_choice"] == "Claude subscription (local)":
+        if st.session_state["story_provider_choice"] == "Free public · OpenRouter":
+            shared_key = _config("OPENROUTER_API_KEY")
+            if shared_key:
+                st.caption(
+                    "Using LitRevBuddy's shared free OpenRouter quota. If it is temporarily exhausted, "
+                    "you can use your own free key below."
+                )
+                personal_key = st.text_input(
+                    "Optional personal OpenRouter key",
+                    type="password",
+                    key="openrouter_personal_key_input",
+                    placeholder="sk-or-v1-…",
+                    help="Used only for this browser session and never written to the repository.",
+                )
+                if personal_key:
+                    st.session_state["openrouter_session_key"] = personal_key.strip()
+            else:
+                st.caption(
+                    "OpenRouter offers a free model router. Create a free API key, paste it below, "
+                    "and LitRevBuddy will use it only for this browser session."
+                )
+                personal_key = st.text_input(
+                    "OpenRouter API key",
+                    type="password",
+                    key="openrouter_personal_key_input",
+                    placeholder="sk-or-v1-…",
+                    help="This value is kept in Streamlit session state only.",
+                )
+                if personal_key:
+                    st.session_state["openrouter_session_key"] = personal_key.strip()
+                st.markdown("[Create a free OpenRouter key ↗](https://openrouter.ai/keys)")
+        elif st.session_state["story_provider_choice"] == "Claude subscription (local)":
             st.caption(
                 "Uses the Claude Code login on this computer. No Anthropic API key is required for local testing."
             )
-        elif not _config("OPENAI_API_KEY"):
-            st.caption("OPENAI_API_KEY is not configured. Search and paper discovery still work normally.")
+        else:
+            st.caption("Uses the configured OpenAI API key.")
 
     source_tabs = st.tabs(["From LitRevBuddy", "Bring your own paper"])
     with source_tabs[0]:
