@@ -461,7 +461,7 @@ def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
             _handle_library_source(PaperSource.model_validate(selected))
             st.caption("Abstract mode is faster. Full-paper mode can support richer method, result, and limitation cards when a PDF is available.")
         else:
-            render_tip("Open a paper from Discover or Paper and choose 'Explain as Story'. You can also load a URL or PDF in the next tab.")
+            render_tip("Open a paper from Search and choose 'Explain' or 'Understand this paper'. You can also load a URL or PDF in the next tab.")
     with source_tabs[1]:
         _external_source_controls()
 
