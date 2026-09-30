@@ -264,7 +264,7 @@ def validate_story(story: PaperStory, parsed: ParsedPaper, source_context: str) 
             else _clip_words(source.title, SUMMARY_MAX_WORDS)
         )
 
-    minimum_cards = 3
+    minimum_cards = 2
     if len(story.cards) < minimum_cards:
         raise StoryGenerationError(
             f"Only {len(story.cards)} of {generated_card_count} generated cards could be verified against the source. "
