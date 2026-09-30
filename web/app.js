@@ -693,10 +693,15 @@ function normalizeNetworkGraph(raw) {
     id:String(node.id),
     label:String(node.label || node.id || "Untitled"),
     file_type:String(node.file_type || node.type || "concept"),
+    node_kind:String(node.node_kind || ""),
     source_file:String(node.source_file || ""),
     litrevbuddy_id:Number.isFinite(Number(node.litrevbuddy_id)) ? Number(node.litrevbuddy_id) : null,
     source_location:String(node.source_location || ""),
-    source_url:String(node.source_url || ""),
+    source_url:String(node.source_url || node.semantic_scholar_url || node.paper_url || ""),
+    year:Number.isFinite(Number(node.year)) ? Number(node.year) : null,
+    venue:String(node.venue || ""),
+    citation_count:Number.isFinite(Number(node.citation_count)) ? Number(node.citation_count) : null,
+    shared_by_seed_count:Number.isFinite(Number(node.shared_by_seed_count)) ? Number(node.shared_by_seed_count) : null,
     community:Number.isFinite(Number(node.community)) ? Number(node.community) : 0
   }]));
   const cleanEdges = edges
@@ -821,7 +826,7 @@ function renderCitationGraph() {
     const degree=view.degree?.get(point.node.id)||1;
     const radius=Math.min(7,2.4+Math.log2(degree+1)*.8);
     ctx.globalAlpha=selected||match?1:.78;
-    ctx.fillStyle=selected?accent:(point.node.file_type==="paper"?cyan:muted);
+    ctx.fillStyle=selected?accent:(point.node.node_kind==="seed"?cyan:muted);
     ctx.beginPath();ctx.arc(point.x,point.y,selected?radius+2:radius,0,Math.PI*2);ctx.fill();
   });
   ctx.globalAlpha=1;
