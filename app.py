@@ -16,6 +16,7 @@ from components.ui import (
     render_tip,
 )
 from services.similarity import get_similar_papers, query_scores
+from utils.navigation import apply_pending_state_updates, queue_state_updates
 
 
 ARTIFACT_DIR = Path("artifacts")
@@ -55,18 +56,20 @@ def _reset_paper_detail() -> None:
 
 
 def _open_paper(paper_id) -> None:
-    st.session_state["selected_paper_id"] = int(paper_id)
-    st.session_state["search_view"] = "paper"
-    st.session_state["primary_nav"] = "Search"
-    st.rerun()
+    queue_state_updates(
+        selected_paper_id=int(paper_id),
+        search_view="paper",
+        primary_nav="Search",
+    )
 
 
 def _open_story(row) -> None:
-    st.session_state["story_source"] = library_source_from_row(row)
-    st.session_state["active_story"] = None
-    st.session_state["story_card_index"] = 0
-    st.session_state["primary_nav"] = "Stories"
-    st.rerun()
+    queue_state_updates(
+        story_source=library_source_from_row(row),
+        active_story=None,
+        story_card_index=0,
+        primary_nav="Stories",
+    )
 
 
 def _filter_papers(df, query, selected_venues, selected_years, min_score, vectorizer, svd, vectors):
@@ -108,6 +111,8 @@ st.session_state.setdefault("result_limit", 15)
 st.session_state.setdefault("min_score", 0.0)
 st.session_state.setdefault("selected_paper_id", None)
 st.session_state.setdefault("search_view", "results")
+
+apply_pending_state_updates()
 
 render_app_header(len(df))
 
@@ -206,13 +211,13 @@ if navigation == "Search":
 
         control_a, control_b, control_c = st.columns([1, 1, 2])
         if control_a.button(f"{max(years)} only", use_container_width=True):
-            st.session_state["filter_years"] = [max(years)]
-            st.rerun()
+            queue_state_updates(filter_years=[max(years)])
         if control_b.button("Reset filters", use_container_width=True):
-            st.session_state["filter_venues"] = venues
-            st.session_state["filter_years"] = years
-            st.session_state["min_score"] = 0.0
-            st.rerun()
+            queue_state_updates(
+                filter_venues=venues,
+                filter_years=years,
+                min_score=0.0,
+            )
         with control_c:
             min_score = st.slider(
                 "Minimum relevance",
