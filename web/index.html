@@ -99,7 +99,8 @@
       <div class="explore-tabs" role="tablist">
         <button class="tab-btn active" data-explore-tab="topics">Topics</button>
         <button class="tab-btn" data-explore-tab="map">Topic map</button>
-        <button class="tab-btn" data-explore-tab="citations">Citation graph</button>
+        <button class="tab-btn" data-explore-tab="citations">Citation map</button>
+        <button class="tab-btn" data-explore-tab="knowledge">Knowledge map</button>
       </div>
 
       <div id="topicsPanel" class="explore-panel active">
@@ -116,18 +117,17 @@
       <div id="citationsPanel" class="explore-panel">
         <div class="citation-toolbar">
           <div>
-            <div class="eyebrow">Graphify knowledge graph</div>
+            <div class="eyebrow">Bibliographic network</div>
             <h2>Citation map</h2>
-            <p id="citationStatus">Looking for a published Graphify graph…</p>
+            <p id="citationStatus">Looking for published citation data…</p>
           </div>
           <div class="citation-actions">
             <input id="citationSearch" type="search" placeholder="Find a paper or concept…" aria-label="Search citation graph" />
             <select id="citationRelationFilter" aria-label="Citation relationship filter">
-              <option value="citations">Citations</option>
-              <option value="extracted">Extracted relationships</option>
-              <option value="all">All relationships</option>
+              <option value="citations">Direct citations</option>
+              <option value="all">All bibliographic edges</option>
             </select>
-            <label class="secondary-btn upload-btn">Open graph.json
+            <label class="secondary-btn upload-btn">Open citation graph
               <input id="citationGraphUpload" type="file" accept=".json,application/json" hidden />
             </label>
           </div>
@@ -141,7 +141,18 @@
             <div class="empty compact-empty">Select a node to inspect its relationships.</div>
           </aside>
         </div>
-        <p class="microcopy">Published graphs are generated offline with Graphify. Uploaded JSON stays only in this page's memory and is never persisted by LitRevBuddy.</p>
+        <p class="microcopy">Citation edges are generated offline from bibliographic metadata. Uploaded JSON stays only in this page's memory and is never persisted by LitRevBuddy.</p>
+      </div>
+
+      <div id="knowledgePanel" class="explore-panel">
+        <div class="knowledge-intro">
+          <div class="eyebrow">Semantic research graph</div>
+          <h2>Knowledge map</h2>
+          <p>Graphify will add concept, method, dataset, task, and other semantic relationships on top of LitRevBuddy abstracts and the verified citation network. This view will be enabled after the first local Graphify corpus is generated and validated.</p>
+          <div class="knowledge-flow">
+            <span>LitRevBuddy abstracts</span><strong>+</strong><span>verified citations</span><strong>→</strong><span>Graphify</span><strong>→</strong><span>knowledge map</span>
+          </div>
+        </div>
       </div>
     </section>
 
