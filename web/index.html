@@ -98,7 +98,8 @@
 
       <div class="explore-tabs" role="tablist">
         <button class="tab-btn active" data-explore-tab="topics">Topics</button>
-        <button class="tab-btn" data-explore-tab="map">Map</button>
+        <button class="tab-btn" data-explore-tab="map">Topic map</button>
+        <button class="tab-btn" data-explore-tab="citations">Citation graph</button>
       </div>
 
       <div id="topicsPanel" class="explore-panel active">
@@ -110,6 +111,37 @@
           <div id="mapTooltip" class="map-tooltip" hidden></div>
         </div>
         <p class="microcopy">Each dot is a paper. Nearby dots share similar topic features. Click a dot to open it.</p>
+      </div>
+
+      <div id="citationsPanel" class="explore-panel">
+        <div class="citation-toolbar">
+          <div>
+            <div class="eyebrow">Graphify knowledge graph</div>
+            <h2>Citation map</h2>
+            <p id="citationStatus">Looking for a published Graphify graph…</p>
+          </div>
+          <div class="citation-actions">
+            <input id="citationSearch" type="search" placeholder="Find a paper or concept…" aria-label="Search citation graph" />
+            <select id="citationRelationFilter" aria-label="Citation relationship filter">
+              <option value="citations">Citations</option>
+              <option value="extracted">Extracted relationships</option>
+              <option value="all">All relationships</option>
+            </select>
+            <label class="secondary-btn upload-btn">Open graph.json
+              <input id="citationGraphUpload" type="file" accept=".json,application/json" hidden />
+            </label>
+          </div>
+        </div>
+        <div class="citation-layout">
+          <div class="map-card citation-map-card">
+            <canvas id="citationMap" aria-label="Interactive citation graph"></canvas>
+            <div id="citationTooltip" class="map-tooltip" hidden></div>
+          </div>
+          <aside id="citationDetails" class="citation-details">
+            <div class="empty compact-empty">Select a node to inspect its relationships.</div>
+          </aside>
+        </div>
+        <p class="microcopy">Published graphs are generated offline with Graphify. Uploaded JSON stays only in this page's memory and is never persisted by LitRevBuddy.</p>
       </div>
     </section>
 
