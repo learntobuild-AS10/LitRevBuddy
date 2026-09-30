@@ -1,157 +1,125 @@
 # LitRevBuddy
 
-LitRevBuddy is a Streamlit app for discovering recent AI papers and building a fast, technically useful mental model of the work.
+LitRevBuddy is a static-first research discovery app for finding, understanding, and connecting recent AI papers.
 
-The paper index currently contains 59,627 papers across AAAI, ACL, CVPR, ICCV, ICLR, ICML, NeurIPS, and WACV. Coverage varies by venue across 2024–2026. Search and related-paper discovery continue to use the existing TF-IDF → TruncatedSVD → 128-dimensional vector pipeline and nearest-neighbor index.
+**Live site:** https://learntobuild-as10.github.io/LitRevBuddy/
 
-## Features
+The current catalog contains **67,343 papers** across AAAI, ACL, CVPR, ICCV, ICLR, ICML, MICCAI, NeurIPS, and WACV, covering 2024–2026. The research-data pipeline remains Python-based; the public product is plain HTML/CSS/JavaScript deployed through GitHub Pages.
 
-- Topic search across paper titles and abstracts
-- Venue and year filtering
-- Cluster-based browsing
-- 2D topic map visualization
-- Paper deep dive and nearest-neighbor related papers
-- Paper Stories: source-grounded, swipe-style explainers generated from an abstract or parsed full paper
-- External paper ingestion from paper URLs, direct PDFs, arXiv/OpenReview links, DOI landing pages where metadata is exposed, and PDF upload
-- Compact study area with key concepts and flashcards
+## Product
 
-## Paper Stories architecture
+- Fast browser-side search across titles, abstracts, authors, venues, and topic neighborhoods
+- Year and venue filters
+- Daily five-paper research stack
+- "Surprise me" discovery
+- Centered paper detail modal with abstract, original-paper links, and related work
+- Topic browser and interactive 2D research map
+- Quick Story: richer source-grounded cards from the abstract
+- Deep Story: in-browser PDF parsing for method, data, results, ablations, and limitations
+- Optional AI Story using a visitor-supplied OpenRouter key
+- Temporary saved-paper and reading-trail state for the current page only
+- Responsive desktop, tablet, and mobile layout
+- Dark/light mode and keyboard navigation
+- Privacy and research-use notices included in the public site
 
-Paper Stories keeps generation separate from rendering so the same structured content can later drive infographic images or vertical video.
+## Architecture
 
-    app.py
-    components/
-      paper_view.py
-      story_view.py
-    models/
-      story.py
-    services/
-      similarity.py
-      paper_fetcher.py
-      paper_parser.py
-      llm_provider.py
-      story_generator.py
-    utils/
-      caching.py
+```text
+data/papers.db (local source of truth)
+        |
+        v
+Python ingestion + feature build
+        |
+        v
+artifacts/papers_features.parquet
+        |
+        v
+scripts/build_web_catalog.py
+        |
+        v
+web/data/*.json
+        |
+        v
+GitHub Pages
+```
 
-The core representation is a typed PaperStory containing StoryCard objects. Each card stores its card type, headline/body/bullets, source section, claim basis, and a short verbatim evidence span. Generation uses structured model output, then LitRevBuddy verifies that the evidence span and any numeric values shown on the card occur in the supplied source context. Cards that fail those checks are discarded.
+The public frontend lives in `web/` and does not require a Python web server.
 
-Stories are labeled as either Abstract-based summary or Full-paper summary. The generator is explicitly allowed to omit unsupported experiment, results, or limitation cards instead of filling gaps.
+## Privacy model
 
-## PDF ingestion and privacy
+LitRevBuddy is intentionally stateless with respect to visitors.
 
-- Uploaded PDFs are parsed in memory and are not committed or persisted by the app.
-- PDF downloads/uploads are capped at 20 MB.
-- Parsed text is bounded before generation.
-- Low-text or image-only PDFs fail with an explicit extraction message.
-- Network fetching blocks localhost, private, link-local, reserved, and other non-public address ranges, including redirects.
-- The same fetched and parsed source is reused during the current Streamlit session.
+- No LitRevBuddy accounts
+- No analytics SDK
+- No advertising trackers
+- No payment or subscription system
+- No cookies
+- No localStorage, sessionStorage, or IndexedDB for user activity
+- Search state, saves, reading history, uploaded PDFs, extracted PDF text, and API keys stay only in current page memory
+- Uploaded PDFs are parsed in the browser and are not persisted by LitRevBuddy
+- AI Story is optional and requires explicit confirmation before source text is sent directly to OpenRouter
 
-## LLM configuration
+See `web/privacy.html` and `web/terms.html` for the public notices.
 
-Paper Stories uses a provider abstraction rather than coupling the story schema to one model vendor.
+## Local development
 
-### Local Claude subscription testing
+Create an environment and install the data-pipeline dependencies:
 
-When LitRevBuddy is run locally and the Claude Code CLI is available on PATH, Story Mode offers:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-    Claude subscription (local)
+Build the browser catalog:
 
-This path invokes Claude Code in non-interactive print mode and uses the Claude account already authenticated on that computer. It is intended for the developer testing LitRevBuddy locally, not as authentication for a public hosted deployment.
+```bash
+python scripts/build_web_catalog.py --input artifacts/papers_features.parquet --output web/data
+```
 
-Verify Claude Code first:
+Serve the static site:
 
-    claude --version
-    claude
+```bash
+python -m http.server 8000 -d web
+```
 
-If needed, sign in to Claude Code with the same Claude Pro/Max credentials used for Claude. Then run LitRevBuddy from the same terminal environment.
+Then open `http://localhost:8000`.
 
-The default Claude Code model alias is:
+Deep Story uses PDF.js. The GitHub Pages workflow vendors the pinned PDF.js build into the deployment artifact.
 
-    CLAUDE_CODE_MODEL = "sonnet"
+## Updating the paper database
 
-This setting is optional. The local provider removes ANTHROPIC_API_KEY from the Claude subprocess environment so an API key does not accidentally override subscription authentication during this test path.
+The local SQLite database remains the metadata source of truth and is intentionally not committed.
 
-### OpenAI API
+```bash
+python scripts/update_database.py
+python scripts/update_database.py --limit 5
+python scripts/update_database.py --venues icml
+python scripts/update_database.py --venues miccai
+```
 
-OpenAI remains available as a separate provider. No key is hardcoded. Configure environment variables or Streamlit Community Cloud secrets:
+## Rebuilding research artifacts
 
-    OPENAI_API_KEY = "..."
-    OPENAI_MODEL = "gpt-5.6-luna"
+After validating the database:
 
-OPENAI_MODEL is optional; gpt-5.6-luna is the default.
+```bash
+python scripts/build_features.py
+```
 
-If no paid provider is configured, search, maps, clusters, paper deep dive, and similarity continue to work normally.
+Or ingest and rebuild together:
 
-## Run locally
+```bash
+python scripts/update_database.py --rebuild
+```
 
-    git checkout feature/paper-stories
-    git pull origin feature/paper-stories
-
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt
-
-    claude --version
-    streamlit run app.py
-
-Open the local Streamlit URL, go to Stories, and select Claude subscription (local). No Anthropic API key is required for this local testing path.
-
-## Update the paper database
-
-The local SQLite database is the source of truth for paper metadata. Current 2026 refresh support includes ICML 2026 (PMLR volume 306) and MICCAI 2026 (MICCAI Open Access).
-
-To refresh both current sources:
-
-    python scripts/update_database.py
-
-To test without processing every paper:
-
-    python scripts/update_database.py --limit 5
-
-To update only one source:
-
-    python scripts/update_database.py --venues icml
-    python scripts/update_database.py --venues miccai
-
-The individual ingesters can also be run directly:
-
-    python scripts/ingest_icml_pmlr.py --year 2026
-    python scripts/ingest_miccai.py --year 2026
-
-ECCV 2026 is intentionally not included in the automatic updater yet because its official accepted-paper page is still preliminary and does not expose the same stable abstract/PDF metadata used by LitRevBuddy. Add it when the ECVA/Springer paper pages are stable rather than indexing title-only records.
-
-## Build feature artifacts
-
-Updating data/papers.db does not automatically update Streamlit search. After validating the database, rebuild the search and clustering artifacts:
-
-    python scripts/build_features.py
-
-Or ingest and rebuild in one command:
-
-    python scripts/update_database.py --rebuild
-
-This regenerates the paper parquet, TF-IDF model, 128-dimensional SVD vectors, clusters, nearest-neighbor index, and topic-map coordinates.
-
-The raw database remains local because it exceeds normal GitHub size limits. The deployed app uses the committed precomputed artifacts in artifacts/.
-
-## Tests
-
-Core Story services can be tested without API calls:
-
-    python -m unittest discover -s tests -v
-    python -m compileall app.py components models services utils tests
-
-The tests cover URL normalization and PDF resolution, section extraction, provenance and numeric checks, and story cache-key behavior. Full Streamlit integration still depends on the committed paper artifacts and, for live story generation, a configured API key and outbound network access.
+This regenerates the Parquet metadata, TF-IDF model, 128-dimensional SVD vectors, clusters, nearest-neighbor index, and topic-map coordinates.
 
 ## Deployment
 
-The app is designed for Streamlit Community Cloud. Runtime PDFs, generated story caches, and future video exports are ignored by Git and should not be committed.
+`.github/workflows/pages.yml` builds the browser catalog, validates the frontend, vendors PDF.js, enforces privacy invariants, and deploys `web/` to GitHub Pages on pushes to `main`.
 
-## Video roadmap
+The former Streamlit implementation is preserved on the `legacy/streamlit-app` branch for rollback/reference. It is no longer the primary application.
 
-Vertical video is intentionally not part of the Story Cards MVP. The structured PaperStory representation is the boundary for a later renderer:
+## CI
 
-    PaperStory → card images (Pillow) → optional 1080 × 1920 MP4 renderer
-
-Story quality and provenance should remain the gating requirement before adding video generation.
+`.github/workflows/test.yml` checks the Python data pipeline, browser catalog, frontend JavaScript, required public files, catalog counts, and privacy invariants.
