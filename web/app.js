@@ -25,7 +25,7 @@ const state = {
   citationGraphSource: "",
   citationPoints: [],
   citationSelection: null,
-  citationFilter: "citations",
+  citationFilter: "neighborhood",
   citationQuery: "",
 };
 
@@ -724,8 +724,20 @@ function isCitationEdge(edge) {
 function citationFilteredEdges() {
   const graph=state.citationGraph;
   if(!graph) return [];
-  if(state.citationFilter==="all") return graph.edges;
-  return graph.edges.filter(isCitationEdge);
+  const citations=graph.edges.filter(isCitationEdge);
+  if(state.citationFilter==="neighborhood") return citations;
+
+  const kinds=new Map(graph.nodes.map(node=>[node.id,node.node_kind || ""]));
+  if(state.citationFilter==="direct"){
+    return citations.filter(edge=>kinds.get(edge.source)==="seed" && kinds.get(edge.target)==="seed");
+  }
+  if(state.citationFilter==="shared"){
+    return citations.filter(edge=>
+      (kinds.get(edge.source)==="seed" && kinds.get(edge.target)==="external_reference") ||
+      (kinds.get(edge.target)==="seed" && kinds.get(edge.source)==="external_reference")
+    );
+  }
+  return citations;
 }
 
 function hashNumber(value) {
