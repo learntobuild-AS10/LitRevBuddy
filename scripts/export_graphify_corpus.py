@@ -36,6 +36,11 @@ def main() -> None:
     )
     parser.add_argument("--output", required=True)
     parser.add_argument("--clean-output", action="store_true")
+    parser.add_argument(
+        "--knowledge-only",
+        action="store_true",
+        help="Export only paper metadata and the full catalog abstract; omit all citation/reference sections.",
+    )
     args = parser.parse_args()
 
     graph = json.loads(Path(args.citation_graph).read_text(encoding="utf-8"))
@@ -133,7 +138,9 @@ def main() -> None:
                 f"- {label}" + (f" ({'; '.join(suffix)})" if suffix else "")
             )
 
-        body = f"""# {title}
+        abstract = clean(row.get("abstract"))
+        if args.knowledge_only:
+            body = f"""# {title}
 
 LitRevBuddy ID: {paper_id}
 Venue: {clean(row.get("venue"))}
@@ -143,7 +150,20 @@ Topic: {clean(row.get("cluster_label"))}
 
 ## Abstract
 
-{clean(row.get("abstract"))}
+{abstract}
+"""
+        else:
+            body = f"""# {title}
+
+LitRevBuddy ID: {paper_id}
+Venue: {clean(row.get("venue"))}
+Year: {clean(row.get("year"))}
+Authors: {clean(row.get("authors"))}
+Topic: {clean(row.get("cluster_label"))}
+
+## Abstract
+
+{abstract}
 
 ## Direct citations to other LitRevBuddy seed papers
 
@@ -167,6 +187,8 @@ Topic: {clean(row.get("cluster_label"))}
                 "filename": filename,
                 "direct_seed_citations": len(set(seed_citations.get(paper_id, []))),
                 "shared_external_references": len(external_seen),
+                "knowledge_only": bool(args.knowledge_only),
+                "abstract_chars": len(abstract),
             }
         )
 
@@ -175,10 +197,16 @@ Topic: {clean(row.get("cluster_label"))}
         encoding="utf-8",
     )
     print(f"Wrote {len(manifest)} seed-paper Markdown files to {out}")
-    print(
-        "Citation context includes direct seed citations plus shared external references; "
-        "no PDF text is required."
-    )
+    if args.knowledge_only:
+        print(
+            "Knowledge-only export: paper metadata + full catalog abstract only; "
+            "citation/reference sections were omitted."
+        )
+    else:
+        print(
+            "Citation context includes direct seed citations plus shared external references; "
+            "no PDF text is required."
+        )
 
 
 if __name__ == "__main__":
