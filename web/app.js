@@ -720,8 +720,7 @@ function citationFilteredEdges() {
   if(!graph) return [];
   if(state.citationFilter==="all") return graph.edges;
   if(state.citationFilter==="extracted") return graph.edges.filter(e => e.confidence.toUpperCase()==="EXTRACTED");
-  const citations=graph.edges.filter(isCitationEdge);
-  return citations.length ? citations : graph.edges.filter(e => e.confidence.toUpperCase()==="EXTRACTED");
+  return graph.edges.filter(isCitationEdge);
 }
 
 function hashNumber(value) {
@@ -877,6 +876,11 @@ async function loadPublishedCitationGraph() {
     const raw=await response.json();
     state.citationGraph=normalizeGraphifyGraph(raw);
     state.citationGraphSource="Published Graphify map";
+    if(!state.citationGraph.nodes.length){
+      $("#citationStatus").textContent="No citation graph has been published yet. Run Graphify locally, sanitize the output, and commit the published graph.";
+      $("#citationDetails").innerHTML='<div class="empty compact-empty">Citation graph not published yet.</div>';
+      return;
+    }
     renderCitationGraph();
   }catch(error){
     $("#citationStatus").textContent="No citation graph has been published yet. Open a Graphify graph.json from your device, or publish one through the repository workflow.";
