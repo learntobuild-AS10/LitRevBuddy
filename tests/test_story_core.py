@@ -1,8 +1,11 @@
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from bs4 import BeautifulSoup
 
 from models.story import PaperSource, PaperStory, StoryCard, StudyFlashcard
+from services.llm_provider import OpenRouterStoryProvider
 from services.paper_fetcher import normalize_user_url, resolve_pdf_url
 from services.paper_parser import extract_sections, parsed_from_abstract
 from services.story_generator import build_source_context, evidence_is_supported, validate_story
@@ -131,6 +134,64 @@ The results report an accuracy of 91.2% on Dataset X under the stated setup.
             extract_miccai_authors(soup),
             "Mi, Jia, Jiang, Caiwen, Shen, Dinggang",
         )
+
+
+    def test_openrouter_provider_parses_story_json(self):
+        story = PaperStory(
+            paper_id="1",
+            title="Example Paper",
+            short_title="Example",
+            authors="A. Author",
+            venue="CVPR",
+            year=2026,
+            paper_url="https://example.org/paper",
+            pdf_url="https://example.org/paper.pdf",
+            one_line_summary="A short source-grounded summary.",
+            cards=[
+                StoryCard(
+                    card_type="takeaway",
+                    eyebrow="Takeaway",
+                    headline="A supported result",
+                    body="The paper reports a supported result.",
+                    bullets=[],
+                    visual_hint="summary",
+                    source_section="abstract",
+                    evidence="The paper reports a supported result.",
+                    claim_basis="paper_stated",
+                    provenance_verified=True,
+                )
+            ],
+            key_concepts=["example"],
+            flashcards=[],
+            generated_from=["abstract"],
+            source_quality="abstract",
+        )
+
+        response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content=story.model_dump_json())
+                )
+            ]
+        )
+        fake_client = SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(
+                    create=lambda **kwargs: response
+                )
+            )
+        )
+
+        with patch("services.llm_provider.OpenAI", return_value=fake_client):
+            provider = OpenRouterStoryProvider(api_key="test-key")
+            parsed = provider.generate(
+                system_prompt="Use only the source.",
+                user_prompt="SOURCE: The paper reports a supported result.",
+            )
+
+        self.assertEqual(parsed.title, "Example Paper")
+        self.assertEqual(parsed.source_quality, "abstract")
+        self.assertEqual(len(parsed.cards), 1)
 
     def test_cache_key_changes_with_mode(self):
         a = story_cache_key(source_fingerprint="abc", provider="openai", model="m", mode="abstract")
