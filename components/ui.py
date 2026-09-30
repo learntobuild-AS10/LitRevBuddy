@@ -132,11 +132,11 @@ div[role="radiogroup"] label {
 
 
 def inject_global_styles() -> None:
-    st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
+    st.html(GLOBAL_CSS)
 
 
 def render_app_header(paper_count: int) -> None:
-    st.markdown(
+    st.html(
         f"""
         <div class="lrb-hero">
           <div class="lrb-brand-row">
@@ -148,19 +148,17 @@ def render_app_header(paper_count: int) -> None:
             and turn dense papers into source-grounded study stories.
           </div>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
 def render_page_header(eyebrow: str, title: str, description: str) -> None:
-    st.markdown(
+    st.html(
         f"""
         <div class="lrb-page-eyebrow">{html.escape(eyebrow)}</div>
         <div class="lrb-page-title">{html.escape(title)}</div>
         <div class="lrb-page-copy">{html.escape(description)}</div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -197,18 +195,14 @@ def render_result_preview(row: Any, *, show_score: bool = False) -> None:
     if show_score and score is not None and not pd.isna(score):
         score_text = f" · relevance {float(score):.3f}"
 
-    st.markdown(
+    st.html(
         f"""
         <div class="lrb-result-meta">{html.escape(meta + score_text)}</div>
         <div class="lrb-result-title">{html.escape(title)}</div>
         <div class="lrb-result-abstract">{html.escape(abstract or "Abstract unavailable.")}</div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
 def render_tip(text: str) -> None:
-    st.markdown(
-        f'<div class="lrb-help">{html.escape(text)}</div>',
-        unsafe_allow_html=True,
-    )
+    st.html(f'<div class="lrb-help">{html.escape(text)}</div>')
