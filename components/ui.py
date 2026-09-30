@@ -116,11 +116,26 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
   min-height: 2.65rem;
   border-radius: 12px;
 }
-div[role="radiogroup"] {
-  gap: .25rem;
+.st-key-top_nav div[role="radiogroup"] {
+  gap: .4rem;
+  flex-wrap: wrap;
 }
-div[role="radiogroup"] label {
-  border-radius: 10px;
+.st-key-top_nav div[role="radiogroup"] label {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: .42rem .78rem;
+  transition: background .15s ease, border-color .15s ease;
+}
+.st-key-top_nav div[role="radiogroup"] label:hover {
+  background: rgba(127,127,127,.08);
+  border-color: var(--lrb-border);
+}
+.st-key-top_nav div[role="radiogroup"] label > div:first-child {
+  display: none;
+}
+.st-key-top_nav div[role="radiogroup"] label:has(input:checked) {
+  background: rgba(127,127,127,.12);
+  border-color: var(--lrb-border);
 }
 @media (max-width: 760px) {
   .block-container { padding-top: .8rem; }
