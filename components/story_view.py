@@ -290,28 +290,26 @@ def _render_story_card(story: PaperStory) -> None:
     bullets_html = f'<ul class="story-bullets">{bullets}</ul>' if bullets else ""
     venue_year = " · ".join(bit for bit in [story.venue, str(story.year or "")] if bit)
 
-    st.markdown(STORY_CSS, unsafe_allow_html=True)
-    st.markdown(
-        f"""
-        <div class="story-shell">
-          <div class="story-progress"><div style="width:{progress}%"></div></div>
-          <div class="story-card" data-type="{card_type}">
-            <div>
-              <div class="story-meta">{html.escape(venue_year)} · {index + 1} / {len(story.cards)}</div>
-              <div class="story-eyebrow">{html.escape(card.eyebrow)}</div>
-              <div class="story-headline">{html.escape(card.headline)}</div>
-              <div class="story-body">{html.escape(card.body)}</div>
-              {bullets_html}
-            </div>
-            <div class="story-footer">
-              <span>{html.escape(card.claim_basis.replace('_', ' '))}</span>
-              <span>{html.escape(card.source_section)}</span>
-            </div>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.html(STORY_CSS)
+    card_html = (
+        f'<div class="story-shell">'
+        f'<div class="story-progress"><div style="width:{progress}%"></div></div>'
+        f'<div class="story-card" data-type="{card_type}">'
+        f'<div>'
+        f'<div class="story-meta">{html.escape(venue_year)} · {index + 1} / {len(story.cards)}</div>'
+        f'<div class="story-eyebrow">{html.escape(card.eyebrow)}</div>'
+        f'<div class="story-headline">{html.escape(card.headline)}</div>'
+        f'<div class="story-body">{html.escape(clean_text(card.body))}</div>'
+        f'{bullets_html}'
+        f'</div>'
+        f'<div class="story-footer">'
+        f'<span>{html.escape(card.claim_basis.replace("_", " "))}</span>'
+        f'<span>{html.escape(card.source_section)}</span>'
+        f'</div>'
+        f'</div>'
+        f'</div>'
     )
+    st.html(card_html)
 
     nav_left, nav_mid, nav_right = st.columns([1, 2, 1])
     if nav_left.button("Previous", disabled=index == 0, use_container_width=True, key="story_prev"):
