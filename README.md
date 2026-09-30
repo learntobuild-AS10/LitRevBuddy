@@ -163,10 +163,29 @@ python scripts/build_citation_graph.py
 The script:
 
 - resolves each selected LitRevBuddy paper against Semantic Scholar using closest-title matching
-- rejects low-confidence title/year matches
+- rejects weak matches while allowing exact-title version/year mismatches to be flagged explicitly
 - fetches references for each resolved paper
-- keeps citation edges whose source and target are both in the selected LitRevBuddy corpus
+- preserves direct citation edges among selected LitRevBuddy papers
+- in the default `expanded` mode, also adds external papers cited by at least two selected seed papers
+- labels selected LitRevBuddy papers as seed nodes and shared cited papers as external-reference nodes
 - writes `web/data/citation-graph/graph.json`
+
+The default expanded graph keeps citation semantics intact: every displayed edge is still an explicit `paper → cites → paper` relationship. It does not invent similarity edges or ask an LLM to infer citations.
+
+For the strict closed 30-paper graph instead:
+
+```bash
+python scripts/build_citation_graph.py --mode core
+```
+
+For the expanded citation neighborhood:
+
+```bash
+python scripts/build_citation_graph.py \
+  --mode expanded \
+  --min-shared-reference-seeds 2 \
+  --max-external-nodes 150
+```
 
 Set `S2_API_KEY` if you have a Semantic Scholar API key. The script can run without one, but intentionally uses a slower request cadence and retries rate limits.
 
