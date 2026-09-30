@@ -18,6 +18,9 @@ const state = {
   openRouterKey: "",
   storyCards: [],
   storyIndex: 0,
+  storyMode: "quick",
+  deepText: "",
+  deepSourceLabel: "",
 };
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -273,55 +276,216 @@ function splitSentences(text) {
     .match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map(s=>s.trim()).filter(s=>s.length>28) || [];
 }
 
-function extractiveCards(paper) {
-  const sentences = splitSentences(paper.abstract || paper.s);
-  if (!sentences.length) return [];
-  const pick = (regex, fallback) => sentences.find(s => regex.test(s)) || sentences[fallback] || sentences[0];
-  const candidates = [
-    ["Problem", pick(/challenge|problem|limited|limitation|difficult|however|despite/i,0)],
-    ["Core idea", pick(/we propose|we present|we introduce|we develop|our method|our approach/i,1)],
-    ["How it works", pick(/using|through|via|consists|framework|architecture|module|encoder|decoder/i,2)],
-    ["Evidence", pick(/outperform|achiev|improv|result|accuracy|auc|dice|significant|%/i,Math.max(0,sentences.length-2))],
-    ["Takeaway", sentences[sentences.length-1]],
+const STORY_STOPWORDS = new Set([
+  "the","and","for","with","that","this","from","were","was","are","our","their","they","using","into","through",
+  "have","has","had","but","not","can","than","which","these","those","been","also","between","over","under","across",
+  "paper","method","model","models","results","approach","based","show","shows","propose","proposed","we","a","an","of",
+  "to","in","on","as","by","is","it","be","or","at","its"
+]);
+
+function keyTerms(text, limit=4) {
+  const counts = new Map();
+  for (const token of normalize(text).split(/\s+/)) {
+    if (token.length < 4 || STORY_STOPWORDS.has(token) || /^\d+$/.test(token)) continue;
+    counts.set(token,(counts.get(token)||0)+1);
+  }
+  return [...counts.entries()].sort((a,b)=>b[1]-a[1] || b[0].length-a[0].length).slice(0,limit).map(([term])=>term);
+}
+
+function findSentence(sentences, regexes, used=new Set(), preferNumbers=false) {
+  let best=null;
+  let bestScore=-Infinity;
+  sentences.forEach((sentence,index)=>{
+    if(used.has(sentence)) return;
+    let score=0;
+    for(const regex of regexes) if(regex.test(sentence)) score+=8;
+    if(preferNumbers && /\b\d+(?:\.\d+)?%|\b0\.\d+\b|\bp\s*[<=>]/i.test(sentence)) score+=5;
+    if(sentence.length>=70 && sentence.length<=360) score+=2;
+    if(index<Math.max(3,Math.floor(sentences.length*.15))) score+=.5;
+    if(score>bestScore){bestScore=score;best={sentence,index,score}}
+  });
+  return bestScore>0?best:null;
+}
+
+function supportingSentence(sentences,index,used) {
+  for(const offset of [1,-1,2]){
+    const candidate=sentences[index+offset];
+    if(candidate && !used.has(candidate) && candidate.length<420) return candidate;
+  }
+  return "";
+}
+
+function metricFrom(text) {
+  return text.match(/\b\d+(?:\.\d+)?%|\b0\.\d{2,}\b|\b\d+(?:\.\d+)?\s*(?:points?|pp)\b/i)?.[0] || "";
+}
+
+function makeStoryCard({label,headline,primary,support="",type="concept",source="Abstract"}) {
+  const combined=[primary,support].filter(Boolean).join(" ");
+  return {
+    label,headline,
+    body:combined,
+    evidence:primary,
+    bullets:keyTerms(combined,4),
+    type,
+    metric:type==="result"?metricFrom(combined):"",
+    source
+  };
+}
+
+function buildGroundedCards(text, source="Abstract", deep=false) {
+  const sentences=splitSentences(text);
+  if(!sentences.length) return [];
+  const used=new Set();
+  const specs = deep ? [
+    ["Problem","What problem motivates the paper",[/\bproblem\b|\bchallenge\b|\blimit(?:ed|ation)?\b|\bshortcoming\b|\bneed for\b/i],"problem",false],
+    ["Prior work","What existing approaches miss",[/\bprevious\b|\bprior work\b|\bexisting\b|\bstate[- ]of[- ]the[- ]art\b|\bhowever\b|\bdespite\b/i],"comparison",false],
+    ["Core idea","The paper's central move",[/\bwe propose\b|\bwe present\b|\bwe introduce\b|\bwe develop\b|\bnovel\b|\bour framework\b/i],"concept",false],
+    ["Method","How the method works",[/\barchitecture\b|\bframework\b|\bmodule\b|\bencoder\b|\bdecoder\b|\btraining\b|\boptimization\b|\balgorithm\b|\bconsists? of\b|\bcompris(?:e|es)\b/i],"method",false],
+    ["Data","What they evaluate on",[/\bdataset\b|\bbenchmark\b|\bcohort\b|\btraining set\b|\btest set\b|\bvalidation set\b|\bsubjects?\b|\bpatients?\b/i],"data",true],
+    ["Results","What the experiments report",[/\boutperform\b|\bachiev\w*\b|\bimprov\w*\b|\bresults?\b|\baccuracy\b|\bauroc\b|\bdice\b|\bf1\b|\bsignificant\b/i],"result",true],
+    ["Ablation","What seems to drive performance",[/\bablation\b|\bvariant\b|\bcomponent\b|\bsensitivity\b|\bw\/o\b|\bwithout\b/i],"comparison",true],
+    ["Limitations","What remains unresolved",[/\blimitation\b|\bfuture work\b|\bfail(?:s|ure)?\b|\bhowever\b|\balthough\b|\bremains?\b/i],"limitation",false],
+    ["Takeaway","What to remember",[/\bconclusion\b|\bdemonstrat\w*\b|\bshow\w*\b|\boverall\b|\bwe find\b/i],"takeaway",false],
+  ] : [
+    ["Problem","Why this paper exists",[/\bproblem\b|\bchallenge\b|\blimit(?:ed|ation)?\b|\bshortcoming\b|\bneed for\b|\bhowever\b/i],"problem",false],
+    ["Core idea","The central move",[/\bwe propose\b|\bwe present\b|\bwe introduce\b|\bwe develop\b|\bnovel\b|\bour framework\b/i],"concept",false],
+    ["Method","How it works",[/\busing\b|\bthrough\b|\bvia\b|\bframework\b|\barchitecture\b|\bmodule\b|\bencoder\b|\bdecoder\b|\btraining\b/i],"method",false],
+    ["Evidence","What the abstract reports",[/\boutperform\b|\bachiev\w*\b|\bimprov\w*\b|\bresult\w*\b|\baccuracy\b|\bauroc\b|\bdice\b|\bf1\b|%/i],"result",true],
+    ["Limitations","What the abstract qualifies",[/\blimitation\b|\bhowever\b|\balthough\b|\bfuture\b|\bremains?\b/i],"limitation",false],
+    ["Takeaway","What to remember",[/\bdemonstrat\w*\b|\bshow\w*\b|\bwe find\b|\boverall\b|\bconclusion\b/i],"takeaway",false],
   ];
-  const seen = new Set();
-  return candidates.filter(([,body]) => {
-    const key = normalize(body);
-    if (!key || seen.has(key)) return false;
-    seen.add(key); return true;
-  }).map(([label,body]) => ({
-    label,
-    headline: label === "Problem" ? "What this paper is trying to solve"
-      : label === "Core idea" ? "The central move"
-      : label === "How it works" ? "The mechanism in one step"
-      : label === "Evidence" ? "What the abstract reports"
-      : "What to remember",
-    body,
-    evidence: body,
-  }));
+
+  const cards=[];
+  for(const [label,headline,regexes,type,preferNumbers] of specs){
+    const hit=findSentence(sentences,regexes,used,preferNumbers);
+    if(!hit) continue;
+    used.add(hit.sentence);
+    const support=supportingSentence(sentences,hit.index,used);
+    if(support) used.add(support);
+    cards.push(makeStoryCard({label,headline,primary:hit.sentence,support,type,source}));
+  }
+
+  if(cards.length<4){
+    for(const sentence of sentences){
+      if(cards.length>=6) break;
+      if(used.has(sentence)) continue;
+      used.add(sentence);
+      cards.push(makeStoryCard({
+        label:cards.length===0?"Overview":"Key point",
+        headline:cards.length===0?"The paper in one view":"Another point worth keeping",
+        primary:sentence,
+        type:"concept",
+        source
+      }));
+    }
+  }
+  return cards.slice(0,deep?9:7);
+}
+
+function extractiveCards(paper) {
+  return buildGroundedCards(paper.abstract || paper.s,"Abstract",false);
+}
+
+async function parsePdfBuffer(buffer) {
+  const pdfjs = await import("./vendor/pdf.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL("./vendor/pdf.worker.mjs", import.meta.url).href;
+  const pdf = await pdfjs.getDocument({data:new Uint8Array(buffer)}).promise;
+  const pageCount=Math.min(pdf.numPages,80);
+  const chunks=[];
+  let total=0;
+  for(let pageNo=1;pageNo<=pageCount && total<260000;pageNo++){
+    const page=await pdf.getPage(pageNo);
+    const content=await page.getTextContent();
+    let pageText="";
+    for(const item of content.items){
+      if(!item.str) continue;
+      pageText+=item.str+(item.hasEOL?"\n":" ");
+    }
+    pageText=pageText.replace(/[ \t]+/g," ").replace(/\n{3,}/g,"\n\n").trim();
+    chunks.push(pageText);
+    total+=pageText.length;
+  }
+  return chunks.join("\n\n").slice(0,260000);
+}
+
+async function loadDeepStoryFromBuffer(buffer,label="Full paper PDF") {
+  $("#storyContent").innerHTML='<div class="story-stage"><div class="empty">Reading the PDF in your browser…</div></div>';
+  const text=await parsePdfBuffer(buffer);
+  if(text.length<1500) throw new Error("Too little text could be extracted from this PDF.");
+  state.deepText=text;
+  state.deepSourceLabel=label;
+  state.storyMode="deep";
+  state.storyCards=buildGroundedCards(text,label,true);
+  state.storyIndex=0;
+  renderStory();
+}
+
+function renderDeepStorySetup(message="Load the full paper for a deeper walkthrough.") {
+  const paper=state.activePaper;
+  $("#storyContent").innerHTML=`
+    <div class="story-stage">
+      <div class="deep-setup">
+        <div class="eyebrow">Deep story</div>
+        <h2>Read beyond the abstract</h2>
+        <p>${esc(message)}</p>
+        <div class="deep-actions">
+          ${paper?.pdf?`<button id="loadPdfDirect" class="action-btn primary">Try paper PDF</button>`:""}
+          <label class="action-btn upload-btn">Choose PDF<input id="deepPdfUpload" type="file" accept="application/pdf,.pdf" hidden /></label>
+        </div>
+        <p class="microcopy">PDF text is processed only in this page's memory. It is not uploaded to LitRevBuddy or persisted.</p>
+      </div>
+    </div>`;
+
+  $("#loadPdfDirect")?.addEventListener("click",async()=>{
+    try{
+      const response=await fetch(paper.pdf,{mode:"cors",credentials:"omit",referrerPolicy:"no-referrer"});
+      if(!response.ok) throw new Error("PDF request failed");
+      const buffer=await response.arrayBuffer();
+      await loadDeepStoryFromBuffer(buffer,"Full paper PDF");
+    }catch(error){
+      console.error(error);
+      renderDeepStorySetup("This publisher blocks direct browser PDF access. Choose the PDF from your device instead.");
+    }
+  });
+  $("#deepPdfUpload")?.addEventListener("change",async event=>{
+    const file=event.target.files?.[0];
+    if(!file) return;
+    if(file.size>35*1024*1024){toast("PDF is too large for browser processing");return}
+    try{await loadDeepStoryFromBuffer(await file.arrayBuffer(),"Uploaded full paper PDF")}
+    catch(error){console.error(error);renderDeepStorySetup(error.message||"Could not read this PDF.")}
+  });
 }
 
 function renderStory() {
   const paper = state.activePaper;
   const cards = state.storyCards;
   if (!paper || !cards.length) {
-    $("#storyContent").innerHTML = '<div class="story-stage"><div class="empty">No source cards could be extracted from this paper.</div></div>';
+    $("#storyContent").innerHTML = '<div class="story-stage"><div class="empty">No source-grounded cards could be extracted from this source.</div></div>';
     return;
   }
   state.storyIndex = Math.max(0,Math.min(state.storyIndex,cards.length-1));
   const card = cards[state.storyIndex];
+  const modeLabel=state.storyMode==="deep"?"Deep story":"Quick story";
+  const bullets=(card.bullets||[]).length?`<div class="story-keywords">${card.bullets.map(x=>`<span>${esc(x)}</span>`).join("")}</div>`:"";
+  const metric=card.metric?`<div class="story-metric">${esc(card.metric)}</div>`:"";
   $("#storyContent").innerHTML = `
     <div class="story-stage">
       <div class="story-heading">
         <div class="eyebrow">${esc(paper.v)} · ${paper.y}</div>
         <h2>${esc(paper.t)}</h2>
-        <p>Source-only card · ${state.storyIndex+1} of ${cards.length}</p>
+        <p>${modeLabel} · ${state.storyIndex+1} of ${cards.length}</p>
       </div>
-      <article class="story-card">
+      <article class="story-card story-type-${esc(card.type||"concept")}">
         <div class="story-step">${esc(card.label)}</div>
+        ${metric}
         <h3>${esc(card.headline)}</h3>
         <p>${esc(card.body)}</p>
-        <div class="story-source">Source: abstract · exact sentence from the paper</div>
+        ${bullets}
+        <details class="story-evidence">
+          <summary>Evidence</summary>
+          <blockquote>${esc(card.evidence)}</blockquote>
+        </details>
+        <div class="story-source">Source: ${esc(card.source||"Abstract")}</div>
       </article>
       <div class="story-controls">
         <button class="secondary-btn" id="storyPrev" ${state.storyIndex===0?"disabled":""}>← Previous</button>
@@ -335,12 +499,16 @@ function renderStory() {
 
 async function openStory(paper) {
   state.activePaper = paper;
+  state.storyMode = "quick";
   state.storyCards = extractiveCards(paper);
   state.storyIndex = 0;
+  state.deepText = "";
+  state.deepSourceLabel = "";
   $("#storyModal").classList.add("open");
   $("#storyModal").setAttribute("aria-hidden","false");
   document.body.style.overflow = "hidden";
   $("#extractiveStoryBtn").classList.add("active");
+  $("#deepStoryBtn").classList.remove("active");
   $("#aiStoryBtn").classList.remove("active");
   renderStory();
 }
@@ -394,7 +562,10 @@ async function aiStory() {
   }
 
   $("#storyContent").innerHTML='<div class="story-stage"><div class="empty">Generating a concise, source-grounded story…</div></div>';
-  const prompt = `Create 4-6 concise study cards from ONLY this abstract. Return JSON exactly as {"cards":[{"label":"Problem|Core idea|Method|Evidence|Limitation|Takeaway","headline":"max 12 words","body":"max 55 words","evidence":"an exact sentence copied from the abstract"}]}. Do not invent facts. ABSTRACT:\n${paper.abstract || paper.s}`;
+  const aiSource = state.deepText || paper.abstract || paper.s;
+  const aiSourceLabel = state.deepText ? (state.deepSourceLabel || "Full paper PDF") : "Abstract";
+  const boundedSource = aiSource.slice(0,24000);
+  const prompt = `Create 6-8 concise study cards from ONLY the source text below. Cover problem, prior gap, core idea, method, evaluation, results, and limitations when supported. Return JSON exactly as {"cards":[{"label":"short label","headline":"max 12 words","body":"35-65 words","evidence":"one exact sentence copied from the source"}]}. Keep explanations concrete and technical. Never invent facts or numbers. SOURCE (${aiSourceLabel}):\n${boundedSource}`;
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions",{
@@ -417,22 +588,33 @@ async function aiStory() {
     const match=raw.match(/\{[\s\S]*\}/);
     if(!match) throw new Error("No JSON returned");
     const parsed=JSON.parse(match[0]);
-    const sourceNorm=normalizeEvidence(paper.abstract || paper.s);
+    const sourceNorm=normalizeEvidence(aiSource);
     const verified=(parsed.cards || []).filter(card=>{
       const evidence=normalizeEvidence(card.evidence || "");
       return evidence.length>20 && sourceNorm.includes(evidence);
     }).slice(0,6);
     if(verified.length<2) throw new Error("Too few cards could be verified");
-    state.storyCards=verified;
+    state.storyMode = state.deepText ? "deep" : "quick";
+    state.storyCards=verified.map(card=>({
+      ...card,
+      type:/result|performance|evidence/i.test(card.label||"")?"result":
+           /method|architecture|training/i.test(card.label||"")?"method":
+           /limit|failure/i.test(card.label||"")?"limitation":"concept",
+      bullets:keyTerms((card.body||"")+" "+(card.evidence||""),4),
+      metric:metricFrom(card.body||""),
+      source:aiSourceLabel
+    }));
     state.storyIndex=0;
     renderStory();
   } catch(error) {
     console.error(error);
     toast("AI route unavailable — showing source cards");
     state.openRouterKey = "";
+    state.storyMode="quick";
     state.storyCards=extractiveCards(paper);
     state.storyIndex=0;
     $("#extractiveStoryBtn").classList.add("active");
+    $("#deepStoryBtn").classList.remove("active");
     $("#aiStoryBtn").classList.remove("active");
     renderStory();
   }
@@ -634,11 +816,32 @@ function bindGlobalUI(){
   });
 
   $("#extractiveStoryBtn").addEventListener("click",()=>{
-    $("#extractiveStoryBtn").classList.add("active");$("#aiStoryBtn").classList.remove("active");
-    state.storyCards=extractiveCards(state.activePaper);state.storyIndex=0;renderStory();
+    $("#extractiveStoryBtn").classList.add("active");
+    $("#deepStoryBtn").classList.remove("active");
+    $("#aiStoryBtn").classList.remove("active");
+    state.storyMode="quick";
+    state.storyCards=extractiveCards(state.activePaper);
+    state.storyIndex=0;
+    renderStory();
+  });
+  $("#deepStoryBtn").addEventListener("click",()=>{
+    $("#deepStoryBtn").classList.add("active");
+    $("#extractiveStoryBtn").classList.remove("active");
+    $("#aiStoryBtn").classList.remove("active");
+    if(state.deepText){
+      state.storyMode="deep";
+      state.storyCards=buildGroundedCards(state.deepText,state.deepSourceLabel||"Full paper PDF",true);
+      state.storyIndex=0;
+      renderStory();
+    }else{
+      renderDeepStorySetup();
+    }
   });
   $("#aiStoryBtn").addEventListener("click",()=>{
-    $("#aiStoryBtn").classList.add("active");$("#extractiveStoryBtn").classList.remove("active");aiStory();
+    $("#aiStoryBtn").classList.add("active");
+    $("#extractiveStoryBtn").classList.remove("active");
+    $("#deepStoryBtn").classList.remove("active");
+    aiStory();
   });
 
   window.addEventListener("hashchange",routeFromHash);
