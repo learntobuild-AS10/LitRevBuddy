@@ -251,7 +251,7 @@ def _generate(parsed: ParsedPaper) -> None:
         source_fingerprint=source_fingerprint,
         provider=provider_name,
         model=model,
-        mode=parsed.source_quality,
+        mode=f"{parsed.source_quality}:story-v3",
     )
 
     cache = st.session_state["story_cache"]
@@ -591,6 +591,8 @@ def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
     st.caption(f"STEP 2 · STORY · {label}")
     st.subheader(story.title)
     st.write(story.one_line_summary)
+    if len(story.cards) == 2:
+        st.info("Two source-grounded cards were verified from this source. Try regenerating for a fuller walkthrough.")
     _render_story_card(story)
     _render_study_area(story)
     st.divider()
