@@ -25,6 +25,53 @@ def slug(value: str) -> str:
     return value[:80] or "paper"
 
 
+def render_paper_markdown(
+    *,
+    paper_id: int,
+    title: str,
+    venue: str,
+    year: str,
+    authors: str,
+    topic: str,
+    abstract: str,
+    knowledge_only: bool,
+    direct_refs: list[str] | None = None,
+    inbound: list[str] | None = None,
+    external_refs: list[str] | None = None,
+) -> str:
+    base = f"""# {title}
+
+LitRevBuddy ID: {paper_id}
+Venue: {venue}
+Year: {year}
+Authors: {authors}
+Topic: {topic}
+
+## Abstract
+
+{abstract}
+"""
+    if knowledge_only:
+        return base
+
+    direct_refs = direct_refs or []
+    inbound = inbound or []
+    external_refs = external_refs or []
+    return base + f"""
+## Direct citations to other LitRevBuddy seed papers
+
+{chr(10).join(direct_refs) if direct_refs else "- None found within the selected seed corpus."}
+
+## Cited by other LitRevBuddy seed papers
+
+{chr(10).join(inbound) if inbound else "- None found within the selected seed corpus."}
+
+## Shared references in the citation neighborhood
+
+{chr(10).join(external_refs) if external_refs else "- No shared external references passed the citation-neighborhood threshold."}
+"""
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Export LitRevBuddy seed abstracts + verified citation context as Markdown for Graphify."
@@ -139,44 +186,19 @@ def main() -> None:
             )
 
         abstract = clean(row.get("abstract"))
-        if args.knowledge_only:
-            body = f"""# {title}
-
-LitRevBuddy ID: {paper_id}
-Venue: {clean(row.get("venue"))}
-Year: {clean(row.get("year"))}
-Authors: {clean(row.get("authors"))}
-Topic: {clean(row.get("cluster_label"))}
-
-## Abstract
-
-{abstract}
-"""
-        else:
-            body = f"""# {title}
-
-LitRevBuddy ID: {paper_id}
-Venue: {clean(row.get("venue"))}
-Year: {clean(row.get("year"))}
-Authors: {clean(row.get("authors"))}
-Topic: {clean(row.get("cluster_label"))}
-
-## Abstract
-
-{abstract}
-
-## Direct citations to other LitRevBuddy seed papers
-
-{chr(10).join(direct_refs) if direct_refs else "- None found within the selected seed corpus."}
-
-## Cited by other LitRevBuddy seed papers
-
-{chr(10).join(inbound) if inbound else "- None found within the selected seed corpus."}
-
-## Shared references in the citation neighborhood
-
-{chr(10).join(external_refs) if external_refs else "- No shared external references passed the citation-neighborhood threshold."}
-"""
+        body = render_paper_markdown(
+            paper_id=paper_id,
+            title=title,
+            venue=clean(row.get("venue")),
+            year=clean(row.get("year")),
+            authors=clean(row.get("authors")),
+            topic=clean(row.get("cluster_label")),
+            abstract=abstract,
+            knowledge_only=args.knowledge_only,
+            direct_refs=direct_refs,
+            inbound=inbound,
+            external_refs=external_refs,
+        )
         (out / filename).write_text(body, encoding="utf-8")
         manifest.append(
             {
