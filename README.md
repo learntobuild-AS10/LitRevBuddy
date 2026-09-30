@@ -54,9 +54,9 @@ Paper Stories uses a provider abstraction. The initial provider is OpenAI and us
 No key is hardcoded. Configure Streamlit Community Cloud secrets or environment variables:
 
     OPENAI_API_KEY = "..."
-    OPENAI_MODEL = "gpt-6-luna"
+    OPENAI_MODEL = "gpt-5.6-luna"
 
-OPENAI_MODEL is optional; gpt-6-luna is the default. If OPENAI_API_KEY is absent, search, maps, clusters, paper deep dive, and similarity continue to work. The Stories view shows a configuration message instead of crashing the app.
+OPENAI_MODEL is optional; gpt-5.6-luna is the default. If OPENAI_API_KEY is absent, search, maps, clusters, paper deep dive, and similarity continue to work. The Stories view shows a configuration message instead of crashing the app.
 
 ## Run locally
 
