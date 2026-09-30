@@ -1,10 +1,13 @@
 import unittest
 
+from bs4 import BeautifulSoup
+
 from models.story import PaperSource, PaperStory, StoryCard, StudyFlashcard
 from services.paper_fetcher import normalize_user_url, resolve_pdf_url
 from services.paper_parser import extract_sections, parsed_from_abstract
 from services.story_generator import build_source_context, evidence_is_supported, validate_story
 from utils.caching import story_cache_key
+from scripts.ingest_miccai import extract_authors as extract_miccai_authors
 
 
 class StoryCoreTests(unittest.TestCase):
@@ -107,6 +110,27 @@ The results report an accuracy of 91.2% on Dataset X under the stated setup.
         self.assertEqual(len(checked.cards), 3)
         self.assertTrue(all(card.provenance_verified for card in checked.cards))
         self.assertEqual(checked.title, "Example Paper")
+
+
+    def test_miccai_author_extraction(self):
+        html = """
+        <html><body>
+          <h1>Example MICCAI Paper</h1>
+          <h2>Author(s):</h2>
+          <div class="authors">
+            <span><a href="/author/a">Mi, Jia</a> |</span>
+            <span><a href="/author/b">Jiang, Caiwen</a> |</span>
+            <span><a href="/author/c">Shen, Dinggang</a> |</span>
+          </div>
+          <hr>
+          <h1>Abstract</h1>
+        </body></html>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        self.assertEqual(
+            extract_miccai_authors(soup),
+            "Mi, Jia, Jiang, Caiwen, Shen, Dinggang",
+        )
 
     def test_cache_key_changes_with_mode(self):
         a = story_cache_key(source_fingerprint="abc", provider="openai", model="m", mode="abstract")
