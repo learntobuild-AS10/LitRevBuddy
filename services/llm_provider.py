@@ -7,7 +7,7 @@ from openai import OpenAI
 from models.story import PaperStory
 
 
-DEFAULT_OPENAI_MODEL = "gpt-6-luna"
+DEFAULT_OPENAI_MODEL = "gpt-5.6-luna"
 
 
 class LLMProviderError(RuntimeError):
