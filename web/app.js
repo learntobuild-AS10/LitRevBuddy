@@ -21,6 +21,12 @@ const state = {
   storyMode: "quick",
   deepText: "",
   deepSourceLabel: "",
+  citationGraph: null,
+  citationGraphSource: "",
+  citationPoints: [],
+  citationSelection: null,
+  citationFilter: "citations",
+  citationQuery: "",
 };
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -680,6 +686,222 @@ function renderMap() {
   ctx.globalAlpha=1;
 }
 
+function normalizeGraphifyGraph(raw) {
+  const nodes = Array.isArray(raw?.nodes) ? raw.nodes : [];
+  const edges = Array.isArray(raw?.edges) ? raw.edges : (Array.isArray(raw?.links) ? raw.links : []);
+  const nodeMap = new Map(nodes.map(node => [String(node.id), {
+    id:String(node.id),
+    label:String(node.label || node.id || "Untitled"),
+    file_type:String(node.file_type || node.type || "concept"),
+    source_file:String(node.source_file || ""),
+    source_location:String(node.source_location || ""),
+    source_url:String(node.source_url || ""),
+    community:Number.isFinite(Number(node.community)) ? Number(node.community) : 0
+  }]));
+  const cleanEdges = edges
+    .map(edge => ({
+      source:String(typeof edge.source==="object" ? edge.source.id : edge.source),
+      target:String(typeof edge.target==="object" ? edge.target.id : edge.target),
+      relation:String(edge.relation || "related_to"),
+      confidence:String(edge.confidence || ""),
+      confidence_score:Number(edge.confidence_score ?? edge.weight ?? 0),
+      weight:Number(edge.weight ?? 1)
+    }))
+    .filter(edge => nodeMap.has(edge.source) && nodeMap.has(edge.target));
+  return {nodes:[...nodeMap.values()],edges:cleanEdges};
+}
+
+function isCitationEdge(edge) {
+  return /(^|_)(cite|cites|citation|reference|references|referenced_by)($|_)/i.test(edge.relation);
+}
+
+function citationFilteredEdges() {
+  const graph=state.citationGraph;
+  if(!graph) return [];
+  if(state.citationFilter==="all") return graph.edges;
+  if(state.citationFilter==="extracted") return graph.edges.filter(e => e.confidence.toUpperCase()==="EXTRACTED");
+  const citations=graph.edges.filter(isCitationEdge);
+  return citations.length ? citations : graph.edges.filter(e => e.confidence.toUpperCase()==="EXTRACTED");
+}
+
+function hashNumber(value) {
+  let h=2166136261;
+  for(const ch of String(value)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}
+  return (h>>>0)/4294967295;
+}
+
+function citationVisibleGraph() {
+  const graph=state.citationGraph;
+  if(!graph) return {nodes:[],edges:[]};
+  const edges=citationFilteredEdges();
+  const degree=new Map();
+  edges.forEach(e=>{
+    degree.set(e.source,(degree.get(e.source)||0)+1);
+    degree.set(e.target,(degree.get(e.target)||0)+1);
+  });
+  let nodes=graph.nodes.filter(n=>degree.has(n.id));
+  const q=normalize(state.citationQuery);
+  if(q){
+    const matched=new Set(nodes.filter(n=>normalize(n.label).includes(q)).map(n=>n.id));
+    if(matched.size){
+      edges.forEach(e=>{
+        if(matched.has(e.source)) matched.add(e.target);
+        if(matched.has(e.target)) matched.add(e.source);
+      });
+      nodes=nodes.filter(n=>matched.has(n.id));
+    } else {
+      nodes=[];
+    }
+  }
+  if(nodes.length>3000){
+    nodes=[...nodes].sort((a,b)=>(degree.get(b.id)||0)-(degree.get(a.id)||0)).slice(0,3000);
+  }
+  const ids=new Set(nodes.map(n=>n.id));
+  return {nodes,edges:edges.filter(e=>ids.has(e.source)&&ids.has(e.target)).slice(0,12000),degree};
+}
+
+function layoutCitationNodes(nodes,width,height) {
+  const groups=new Map();
+  nodes.forEach(node=>{
+    const key=node.community || node.file_type || 0;
+    if(!groups.has(key)) groups.set(key,[]);
+    groups.get(key).push(node);
+  });
+  const groupList=[...groups.entries()].sort((a,b)=>b[1].length-a[1].length);
+  const centerX=width/2,centerY=height/2;
+  const orbit=Math.min(width,height)*.31;
+  const points=[];
+  groupList.forEach(([group,members],gi)=>{
+    const angle=(Math.PI*2*gi)/Math.max(1,groupList.length)-Math.PI/2;
+    const gx=groupList.length===1?centerX:centerX+Math.cos(angle)*orbit;
+    const gy=groupList.length===1?centerY:centerY+Math.sin(angle)*orbit*.78;
+    const localRadius=Math.max(24,Math.min(150,22*Math.sqrt(members.length)));
+    members.forEach((node,i)=>{
+      const seed=hashNumber(node.id);
+      const a=(i*2.399963229728653)+(seed*.8);
+      const r=localRadius*Math.sqrt((i+.7)/Math.max(1,members.length));
+      points.push({node,x:gx+Math.cos(a)*r,y:gy+Math.sin(a)*r,group});
+    });
+  });
+  return points;
+}
+
+function renderCitationGraph() {
+  const canvas=$("#citationMap");
+  if(!canvas || !state.citationGraph) return;
+  const box=canvas.getBoundingClientRect();
+  const ratio=Math.min(devicePixelRatio||1,2);
+  canvas.width=Math.max(1,Math.floor(box.width*ratio));
+  canvas.height=Math.max(1,Math.floor(box.height*ratio));
+  const ctx=canvas.getContext("2d");
+  ctx.setTransform(ratio,0,0,ratio,0,0);
+  ctx.clearRect(0,0,box.width,box.height);
+
+  const view=citationVisibleGraph();
+  const points=layoutCitationNodes(view.nodes,box.width,box.height);
+  state.citationPoints=points;
+  const pointMap=new Map(points.map(p=>[p.node.id,p]));
+  const styles=getComputedStyle(document.documentElement);
+  const line=styles.getPropertyValue("--line").trim();
+  const muted=styles.getPropertyValue("--muted").trim();
+  const accent=styles.getPropertyValue("--accent").trim();
+  const cyan=styles.getPropertyValue("--cyan").trim();
+
+  ctx.lineWidth=.7;
+  view.edges.forEach(edge=>{
+    const a=pointMap.get(edge.source),b=pointMap.get(edge.target);
+    if(!a||!b) return;
+    ctx.globalAlpha=edge.confidence.toUpperCase()==="EXTRACTED"?.32:.13;
+    ctx.strokeStyle=line;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+  });
+
+  points.forEach(point=>{
+    const selected=state.citationSelection===point.node.id;
+    const match=state.citationQuery && normalize(point.node.label).includes(normalize(state.citationQuery));
+    const degree=view.degree?.get(point.node.id)||1;
+    const radius=Math.min(7,2.4+Math.log2(degree+1)*.8);
+    ctx.globalAlpha=selected||match?1:.78;
+    ctx.fillStyle=selected?accent:(point.node.file_type==="paper"?cyan:muted);
+    ctx.beginPath();ctx.arc(point.x,point.y,selected?radius+2:radius,0,Math.PI*2);ctx.fill();
+  });
+  ctx.globalAlpha=1;
+
+  const originalNodes=state.citationGraph.nodes.length;
+  const originalEdges=state.citationGraph.edges.length;
+  $("#citationStatus").textContent =
+    `${state.citationGraphSource || "Graph"} · showing ${view.nodes.length.toLocaleString()} nodes and ${view.edges.length.toLocaleString()} relationships (${originalNodes.toLocaleString()} nodes / ${originalEdges.toLocaleString()} total)`;
+}
+
+function citationNearest(event) {
+  const canvas=$("#citationMap");
+  const rect=canvas.getBoundingClientRect();
+  const x=event.clientX-rect.left,y=event.clientY-rect.top;
+  return state.citationPoints.reduce((best,pt)=>{
+    const d=(pt.x-x)**2+(pt.y-y)**2;
+    return !best||d<best.d?{pt,d}:best;
+  },null);
+}
+
+function renderCitationDetails(nodeId) {
+  const graph=state.citationGraph;
+  if(!graph) return;
+  const node=graph.nodes.find(n=>n.id===nodeId);
+  if(!node) return;
+  const connected=graph.edges.filter(e=>e.source===nodeId||e.target===nodeId);
+  const neighbors=connected.slice(0,24).map(edge=>{
+    const otherId=edge.source===nodeId?edge.target:edge.source;
+    const other=graph.nodes.find(n=>n.id===otherId);
+    return {edge,other};
+  }).filter(x=>x.other);
+  $("#citationDetails").innerHTML=`
+    <div class="eyebrow">${esc(node.file_type)}${node.community?" · community "+esc(node.community):""}</div>
+    <h3>${esc(node.label)}</h3>
+    ${node.source_file?`<p class="citation-source">${esc(node.source_file)}${node.source_location?" · "+esc(node.source_location):""}</p>`:""}
+    ${node.source_url?`<p><a href="${esc(node.source_url)}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Open source ↗</a></p>`:""}
+    <div class="citation-neighbors">
+      <strong>${connected.length.toLocaleString()} relationships</strong>
+      ${neighbors.map(({edge,other})=>`
+        <button data-citation-node="${esc(other.id)}">
+          <span>${esc(edge.relation.replaceAll("_"," "))}</span>
+          <strong>${esc(other.label)}</strong>
+          <small>${esc(edge.confidence || "unlabelled")}</small>
+        </button>`).join("") || "<p>No connected nodes.</p>"}
+    </div>`;
+}
+
+async function loadPublishedCitationGraph() {
+  try{
+    const response=await fetch(`${DATA_ROOT}/citation-graph/graph.json`,{cache:"no-cache"});
+    if(!response.ok) throw new Error("No published graph");
+    const raw=await response.json();
+    state.citationGraph=normalizeGraphifyGraph(raw);
+    state.citationGraphSource="Published Graphify map";
+    renderCitationGraph();
+  }catch(error){
+    $("#citationStatus").textContent="No citation graph has been published yet. Open a Graphify graph.json from your device, or publish one through the repository workflow.";
+    $("#citationDetails").innerHTML='<div class="empty compact-empty">Citation graph not published yet.</div>';
+  }
+}
+
+function handleCitationUpload(file) {
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const raw=JSON.parse(String(reader.result||""));
+      state.citationGraph=normalizeGraphifyGraph(raw);
+      state.citationGraphSource="Local graph.json";
+      state.citationSelection=null;
+      renderCitationGraph();
+      toast("Citation graph loaded in this page only");
+    }catch(error){
+      console.error(error);
+      toast("Could not read this graph.json");
+    }
+  };
+  reader.readAsText(file);
+}
+
 function renderAbout(){
   const m=state.manifest;
   $("#coverageStats").innerHTML=[
@@ -722,7 +944,10 @@ function setRoute(route) {
   $$(".view").forEach(v=>v.classList.toggle("active",v.dataset.view===route));
   $$(".nav-link").forEach(n=>n.classList.toggle("active",n.dataset.route===route));
   if(route==="saved")renderSaved();
-  if(route==="explore")setTimeout(renderMap,50);
+  if(route==="explore"){
+    setTimeout(renderMap,50);
+    if(!state.citationGraph) loadPublishedCitationGraph();
+  }
   $("#main").focus({preventScroll:true});
 }
 
@@ -784,12 +1009,61 @@ function bindGlobalUI(){
     if(state.route==="explore")renderMap();
   });
 
-  $$(".tab-btn").forEach(btn=>btn.addEventListener("click",()=>{
-    $$(".tab-btn").forEach(b=>b.classList.toggle("active",b===btn));
-    $$(".explore-panel").forEach(p=>p.classList.remove("active"));
-    $(btn.dataset.exploreTab==="map"?"#mapPanel":"#topicsPanel").classList.add("active");
-    if(btn.dataset.exploreTab==="map")setTimeout(renderMap,30);
+  $(".tab-btn").forEach(btn=>btn.addEventListener("click",()=>{
+    $(".tab-btn").forEach(b=>b.classList.toggle("active",b===btn));
+    $(".explore-panel").forEach(p=>p.classList.remove("active"));
+    const tab=btn.dataset.exploreTab;
+    const panel=tab==="map"?"#mapPanel":tab==="citations"?"#citationsPanel":"#topicsPanel";
+    $(panel).classList.add("active");
+    if(tab==="map")setTimeout(renderMap,30);
+    if(tab==="citations"){
+      if(!state.citationGraph) loadPublishedCitationGraph();
+      else setTimeout(renderCitationGraph,30);
+    }
   }));
+
+  $("#citationGraphUpload")?.addEventListener("change",event=>{
+    const file=event.target.files?.[0];
+    if(file) handleCitationUpload(file);
+    event.target.value="";
+  });
+  $("#citationRelationFilter")?.addEventListener("change",event=>{
+    state.citationFilter=event.target.value;
+    state.citationSelection=null;
+    renderCitationGraph();
+  });
+  $("#citationSearch")?.addEventListener("input",debounce(event=>{
+    state.citationQuery=event.target.value.trim();
+    state.citationSelection=null;
+    renderCitationGraph();
+  },100));
+  $("#citationMap")?.addEventListener("mousemove",event=>{
+    if(!state.citationPoints.length) return;
+    const nearest=citationNearest(event);
+    const tip=$("#citationTooltip");
+    if(nearest&&nearest.d<324){
+      tip.hidden=false;
+      tip.textContent=nearest.pt.node.label;
+      const rect=event.currentTarget.getBoundingClientRect();
+      tip.style.left=`${Math.min(event.clientX-rect.left+12,rect.width-290)}px`;
+      tip.style.top=`${Math.max(8,event.clientY-rect.top-12)}px`;
+    }else tip.hidden=true;
+  });
+  $("#citationMap")?.addEventListener("click",event=>{
+    const nearest=citationNearest(event);
+    if(nearest&&nearest.d<625){
+      state.citationSelection=nearest.pt.node.id;
+      renderCitationGraph();
+      renderCitationDetails(state.citationSelection);
+    }
+  });
+  $("#citationDetails")?.addEventListener("click",event=>{
+    const button=event.target.closest("[data-citation-node]");
+    if(!button) return;
+    state.citationSelection=button.dataset.citationNode;
+    renderCitationGraph();
+    renderCitationDetails(state.citationSelection);
+  });
 
   $("#topicMap").addEventListener("click",event=>{
     if(!state.mapPoints?.length)return;
@@ -845,7 +1119,11 @@ function bindGlobalUI(){
   });
 
   window.addEventListener("hashchange",routeFromHash);
-  window.addEventListener("resize",debounce(()=>{if(state.route==="explore"&&!$("#mapPanel").hidden)renderMap()},150));
+  window.addEventListener("resize",debounce(()=>{
+    if(state.route!=="explore") return;
+    if($("#mapPanel").classList.contains("active")) renderMap();
+    if($("#citationsPanel").classList.contains("active") && state.citationGraph) renderCitationGraph();
+  },150));
 
   document.addEventListener("keydown",event=>{
     if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="k"){event.preventDefault();setRoute("search");$("#searchInput").focus();return}
