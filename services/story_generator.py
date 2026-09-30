@@ -193,7 +193,7 @@ def _locate_evidence_section(evidence: str, parsed: ParsedPaper) -> str:
         parsed.source.venue,
         str(parsed.source.year or ""),
     ]
-    if any(evidence_norm in _normalize_for_match(value) for value in metadata_values if value):
+    if any(_recover_evidence_span(evidence, value) for value in metadata_values if value):
         return "metadata"
 
     return "source"
