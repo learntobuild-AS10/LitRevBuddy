@@ -97,11 +97,41 @@ If no paid provider is configured, search, maps, clusters, paper deep dive, and 
 
 Open the local Streamlit URL, go to Stories, and select Claude subscription (local). No Anthropic API key is required for this local testing path.
 
+## Update the paper database
+
+The local SQLite database is the source of truth for paper metadata. Current 2026 refresh support includes ICML 2026 (PMLR volume 306) and MICCAI 2026 (MICCAI Open Access).
+
+To refresh both current sources:
+
+    python scripts/update_database.py
+
+To test without processing every paper:
+
+    python scripts/update_database.py --limit 5
+
+To update only one source:
+
+    python scripts/update_database.py --venues icml
+    python scripts/update_database.py --venues miccai
+
+The individual ingesters can also be run directly:
+
+    python scripts/ingest_icml_pmlr.py --year 2026
+    python scripts/ingest_miccai.py --year 2026
+
+ECCV 2026 is intentionally not included in the automatic updater yet because its official accepted-paper page is still preliminary and does not expose the same stable abstract/PDF metadata used by LitRevBuddy. Add it when the ECVA/Springer paper pages are stable rather than indexing title-only records.
+
 ## Build feature artifacts
 
-After updating the local SQLite database, rebuild the search and clustering artifacts:
+Updating data/papers.db does not automatically update Streamlit search. After validating the database, rebuild the search and clustering artifacts:
 
     python scripts/build_features.py
+
+Or ingest and rebuild in one command:
+
+    python scripts/update_database.py --rebuild
+
+This regenerates the paper parquet, TF-IDF model, 128-dimensional SVD vectors, clusters, nearest-neighbor index, and topic-map coordinates.
 
 The raw database remains local because it exceeds normal GitHub size limits. The deployed app uses the committed precomputed artifacts in artifacts/.
 
