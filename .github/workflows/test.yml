@@ -1,0 +1,60 @@
+name: test
+
+on:
+  push:
+    branches:
+      - feature/paper-stories
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile Python sources
+        run: python -m compileall -q app.py components models services utils tests
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Smoke test Streamlit startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          streamlit run app.py \
+            --server.headless true \
+            --server.port 8501 \
+            --browser.gatherUsageStats false \
+            > /tmp/litrevbuddy-streamlit.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8501/_stcore/health >/dev/null; then
+              echo "Streamlit health check passed."
+              exit 0
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              echo "Streamlit exited before becoming healthy."
+              cat /tmp/litrevbuddy-streamlit.log
+              exit 1
+            fi
+            sleep 2
+          done
+
+          echo "Streamlit did not become healthy."
+          cat /tmp/litrevbuddy-streamlit.log
+          exit 1
