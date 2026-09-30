@@ -2,7 +2,7 @@
 
 LitRevBuddy is a Streamlit app for discovering recent AI papers and building a fast, technically useful mental model of the work.
 
-The paper index currently contains 59,627 papers across AAAI, ACL, CVPR, ICCV, ICLR, ICML, NeurIPS, and WACV. Coverage varies by venue across 2024–2026. Search and related-paper discovery continue to use the existing TF-IDF → TruncatedSVD → 128-dimensional vector pipeline and nearest-neighbor index.
+The paper index currently contains 67,343 papers across AAAI, ACL, CVPR, ICCV, ICLR, ICML, MICCAI, NeurIPS, and WACV. Coverage varies by venue across 2024–2026. Search and related-paper discovery continue to use the existing TF-IDF → TruncatedSVD → 128-dimensional vector pipeline and nearest-neighbor index.
 
 ## Features
 
@@ -80,13 +80,14 @@ For a shared public quota, add these values to Streamlit Community Cloud secrets
 
     OPENROUTER_API_KEY = "sk-or-v1-..."
     OPENROUTER_MODEL = "openrouter/free"
+    OPENROUTER_SHARED_SESSION_LIMIT = "3"
     APP_URL = "https://your-app.streamlit.app"
 
 OPENROUTER_MODEL is optional; `openrouter/free` is the default.
 
-If a shared key is not configured, users can paste their own free OpenRouter key in **Stories → Generation settings**. The key is held only in Streamlit session state and is not written to the repository or local files.
+Visitors can also paste their own free OpenRouter key in **Stories → Generation settings**. A personal key overrides the shared key for that browser session and is not written to the repository or local files.
 
-Free-provider availability and rate limits are controlled by OpenRouter, so generation can occasionally be unavailable even while the rest of LitRevBuddy remains functional.
+The shared key is capped to 3 successful uncached generations per browser session by default; set `OPENROUTER_SHARED_SESSION_LIMIT` to change that value. Cached stories do not consume the session allowance. Free-provider availability and upstream rate limits are controlled by OpenRouter, so generation can occasionally be unavailable even while the rest of LitRevBuddy remains functional.
 
 ### OpenAI API
 
