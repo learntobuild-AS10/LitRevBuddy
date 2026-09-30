@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0d10" />
+  <meta name="description" content="Search, understand, and connect recent AI research." />
+  <title>LitRevBuddy — Find the paper. Get the idea. Follow the thread.</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header" id="siteHeader">
+    <div class="shell header-inner">
+      <button class="brand" data-route="search" aria-label="LitRevBuddy home">
+        <span class="brand-mark">L</span>
+        <span>LitRevBuddy</span>
+      </button>
+
+      <nav class="nav" aria-label="Primary">
+        <button data-route="search" class="nav-link active">Search</button>
+        <button data-route="explore" class="nav-link">Explore</button>
+        <button data-route="saved" class="nav-link">Saved <span id="savedCount" class="nav-count">0</span></button>
+        <button data-route="about" class="nav-link">About</button>
+      </nav>
+
+      <div class="header-actions">
+        <button class="icon-btn" id="surpriseHeader" title="Surprise me" aria-label="Surprise me">↗</button>
+        <button class="icon-btn" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">◐</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="shell page" tabindex="-1">
+    <section id="searchView" class="view active" data-view="search">
+      <div class="hero">
+        <div class="eyebrow">Research discovery, without the tab chaos</div>
+        <h1>Find the paper.<br><span>Get the idea. Follow the thread.</span></h1>
+        <p class="hero-copy">Search <strong id="paperCountHero">67,343</strong> recent AI papers, open the ones that matter, save your trail, and turn abstracts into source-only study cards.</p>
+
+        <div class="search-shell">
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input id="searchInput" type="search" autocomplete="off" spellcheck="false"
+            placeholder="Ask for a topic, method, task, author, or phrase…" aria-label="Search papers" />
+          <kbd>⌘ K</kbd>
+        </div>
+
+        <div class="quick-row" aria-label="Suggested searches">
+          <button class="chip" data-query="medical vision-language models">Medical VLMs</button>
+          <button class="chip" data-query="multimodal learning">Multimodal</button>
+          <button class="chip" data-query="robot policy vision language action">VLA</button>
+          <button class="chip" data-query="foundation models segmentation">Segmentation</button>
+          <button class="chip" data-query="agent reasoning planning">Agents</button>
+        </div>
+      </div>
+
+      <section class="daily-section" id="dailySection">
+        <div class="section-heading">
+          <div>
+            <div class="eyebrow">A useful reason to come back</div>
+            <h2>Today’s research stack</h2>
+            <p>Five papers, refreshed daily. No feed tricks—just a small starting point.</p>
+          </div>
+          <button class="secondary-btn" id="surpriseBtn">Surprise me</button>
+        </div>
+        <div id="dailyStack" class="card-grid"></div>
+      </section>
+
+      <section class="results-section" id="resultsSection">
+        <div class="results-toolbar">
+          <div>
+            <div class="eyebrow" id="resultsEyebrow">Fresh papers</div>
+            <h2 id="resultsTitle">Recent work worth browsing</h2>
+          </div>
+          <div class="toolbar-actions">
+            <button id="yearFilterBtn" class="filter-btn">2026 ▾</button>
+            <button id="venueFilterBtn" class="filter-btn">All venues ▾</button>
+          </div>
+        </div>
+
+        <div id="activeFilters" class="active-filters" aria-live="polite"></div>
+        <div id="resultsList" class="paper-list"></div>
+        <div class="load-row">
+          <button class="secondary-btn" id="loadMoreBtn">Show more</button>
+        </div>
+      </section>
+    </section>
+
+    <section id="exploreView" class="view" data-view="explore">
+      <div class="page-hero compact">
+        <div class="eyebrow">Explore the landscape</div>
+        <h1>Move by idea, not by citation count.</h1>
+        <p>Browse automatically discovered research themes or click the map to jump into a neighborhood.</p>
+      </div>
+
+      <div class="explore-tabs" role="tablist">
+        <button class="tab-btn active" data-explore-tab="topics">Topics</button>
+        <button class="tab-btn" data-explore-tab="map">Map</button>
+      </div>
+
+      <div id="topicsPanel" class="explore-panel active">
+        <div id="topicGrid" class="topic-grid"></div>
+      </div>
+      <div id="mapPanel" class="explore-panel">
+        <div class="map-card">
+          <canvas id="topicMap" aria-label="Interactive topic map"></canvas>
+          <div id="mapTooltip" class="map-tooltip" hidden></div>
+        </div>
+        <p class="microcopy">Each dot is a paper. Nearby dots share similar topic features. Click a dot to open it.</p>
+      </div>
+    </section>
+
+    <section id="savedView" class="view" data-view="saved">
+      <div class="page-hero compact">
+        <div class="eyebrow">Your library</div>
+        <h1>Keep the thread.</h1>
+        <p>Saved papers stay in this browser. No account required.</p>
+      </div>
+      <div id="savedList" class="paper-list"></div>
+      <div id="recentSection" class="recent-section">
+        <div class="section-heading small">
+          <div>
+            <div class="eyebrow">Reading trail</div>
+            <h2>Recently opened</h2>
+          </div>
+        </div>
+        <div id="recentList" class="paper-list compact-list"></div>
+      </div>
+    </section>
+
+    <section id="aboutView" class="view" data-view="about">
+      <div class="page-hero compact about-hero">
+        <div class="eyebrow">About</div>
+        <h1>Built for the moment between “I found it” and “I understand it.”</h1>
+        <p>LitRevBuddy indexes recent papers across major AI and medical-AI venues, then makes it easier to search, explore, connect, and study them.</p>
+      </div>
+
+      <div class="principle-grid">
+        <article><span>01</span><h3>Search first</h3><p>Get to a useful paper quickly. Filters stay secondary until you need them.</p></article>
+        <article><span>02</span><h3>Source first</h3><p>Built-in Stories use sentences from the paper abstract. AI is optional, not required for trust.</p></article>
+        <article><span>03</span><h3>Follow the thread</h3><p>Related papers, topics, saved work, and recent history keep context from disappearing between tabs.</p></article>
+      </div>
+
+      <div id="coverageStats" class="stats-grid"></div>
+      <div class="shortcut-card">
+        <h3>Keyboard</h3>
+        <div><kbd>/</kbd><span>Focus search</span></div>
+        <div><kbd>J</kbd><span>Next result</span></div>
+        <div><kbd>K</kbd><span>Previous result</span></div>
+        <div><kbd>Enter</kbd><span>Open highlighted paper</span></div>
+        <div><kbd>S</kbd><span>Save highlighted paper</span></div>
+      </div>
+    </section>
+  </main>
+
+  <aside id="paperDrawer" class="drawer" aria-hidden="true" aria-label="Paper details">
+    <div class="drawer-backdrop" data-close-drawer></div>
+    <div class="drawer-panel">
+      <button class="drawer-close" data-close-drawer aria-label="Close paper">×</button>
+      <div id="drawerContent"></div>
+    </div>
+  </aside>
+
+  <aside id="storyModal" class="story-modal" aria-hidden="true" aria-label="Paper story">
+    <div class="story-backdrop" data-close-story></div>
+    <div class="story-panel">
+      <div class="story-topbar">
+        <button class="story-close" data-close-story>← Back to paper</button>
+        <div class="story-mode-actions">
+          <button id="extractiveStoryBtn" class="mode-btn active">Source cards</button>
+          <button id="aiStoryBtn" class="mode-btn">AI story</button>
+        </div>
+      </div>
+      <div id="storyContent"></div>
+    </div>
+  </aside>
+
+  <div id="menuPopover" class="popover" hidden></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <footer class="site-footer">
+    <div class="shell">
+      <span>LitRevBuddy</span>
+      <span>Research discovery without dark patterns.</span>
+    </div>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
