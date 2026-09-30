@@ -694,6 +694,7 @@ function normalizeGraphifyGraph(raw) {
     label:String(node.label || node.id || "Untitled"),
     file_type:String(node.file_type || node.type || "concept"),
     source_file:String(node.source_file || ""),
+    litrevbuddy_id:Number.isFinite(Number(node.litrevbuddy_id)) ? Number(node.litrevbuddy_id) : null,
     source_location:String(node.source_location || ""),
     source_url:String(node.source_url || ""),
     community:Number.isFinite(Number(node.community)) ? Number(node.community) : 0
@@ -857,7 +858,10 @@ function renderCitationDetails(nodeId) {
     <div class="eyebrow">${esc(node.file_type)}${node.community?" · community "+esc(node.community):""}</div>
     <h3>${esc(node.label)}</h3>
     ${node.source_file?`<p class="citation-source">${esc(node.source_file)}${node.source_location?" · "+esc(node.source_location):""}</p>`:""}
-    ${node.source_url?`<p><a href="${esc(node.source_url)}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Open source ↗</a></p>`:""}
+    <div class="citation-node-actions">
+      ${node.litrevbuddy_id?`<button class="action-btn primary" data-open-citation-paper="${node.litrevbuddy_id}">Open in LitRevBuddy</button>`:""}
+      ${node.source_url?`<a class="action-btn" href="${esc(node.source_url)}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Open source ↗</a>`:""}
+    </div>
     <div class="citation-neighbors">
       <strong>${connected.length.toLocaleString()} relationships</strong>
       ${neighbors.map(({edge,other})=>`
@@ -1062,6 +1066,11 @@ function bindGlobalUI(){
     }
   });
   $("#citationDetails")?.addEventListener("click",event=>{
+    const paperButton=event.target.closest("[data-open-citation-paper]");
+    if(paperButton){
+      openPaper(Number(paperButton.dataset.openCitationPaper));
+      return;
+    }
     const button=event.target.closest("[data-citation-node]");
     if(!button) return;
     state.citationSelection=button.dataset.citationNode;
