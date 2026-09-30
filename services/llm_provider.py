@@ -7,7 +7,7 @@ import shutil
 import subprocess
 from abc import ABC, abstractmethod
 
-from openai import OpenAI
+from openai import APITimeoutError, OpenAI
 
 from models.story import PaperStory
 
@@ -196,6 +196,8 @@ class OpenRouterStoryProvider(StoryLLMProvider):
         self.client = OpenAI(
             api_key=api_key,
             base_url=OPENROUTER_BASE_URL,
+            timeout=75.0,
+            max_retries=0,
             default_headers={
                 **({"HTTP-Referer": site_url} if site_url else {}),
                 "X-Title": site_name,
@@ -220,10 +222,14 @@ class OpenRouterStoryProvider(StoryLLMProvider):
                 ],
                 temperature=0.2,
             )
+        except APITimeoutError as exc:
+            raise LLMProviderError(
+                "Free generation took too long. Free models can be busy; try again or use your own OpenRouter key."
+            ) from exc
         except Exception as exc:
             raise LLMProviderError(
-                "Free story generation failed. The shared/free quota may be busy or exhausted; "
-                f"try again later or use your own OpenRouter key. Details: {exc}"
+                "Free story generation failed. The shared/free route may be busy or rate-limited; "
+                "try again or use your own OpenRouter key."
             ) from exc
 
         try:
