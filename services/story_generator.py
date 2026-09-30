@@ -102,6 +102,31 @@ def _numbers_supported(text: str, source_context: str) -> bool:
     return all(number.casefold() in source_norm for number in numbers)
 
 
+
+def _locate_evidence_section(evidence: str, parsed: ParsedPaper) -> str:
+    evidence_norm = _normalize_for_match(evidence)
+    if not evidence_norm:
+        return "source"
+
+    for section, text in parsed.sections.items():
+        if evidence_norm in _normalize_for_match(text):
+            return section
+
+    if evidence_norm in _normalize_for_match(parsed.full_text):
+        return "full_text"
+
+    metadata_values = [
+        parsed.source.title,
+        parsed.source.authors,
+        parsed.source.venue,
+        str(parsed.source.year or ""),
+    ]
+    if any(evidence_norm in _normalize_for_match(value) for value in metadata_values if value):
+        return "metadata"
+
+    return "source"
+
+
 def validate_story(story: PaperStory, parsed: ParsedPaper, source_context: str) -> PaperStory:
     source = parsed.source
 
@@ -122,6 +147,7 @@ def validate_story(story: PaperStory, parsed: ParsedPaper, source_context: str) 
         numbers_ok = _numbers_supported(combined, source_context)
         card.provenance_verified = evidence_ok and numbers_ok
         if card.provenance_verified:
+            card.source_section = _locate_evidence_section(card.evidence, parsed)
             card.bullets = card.bullets[:4]
             card.body = card.body[:700]
             card.headline = card.headline[:180]
@@ -135,6 +161,7 @@ def validate_story(story: PaperStory, parsed: ParsedPaper, source_context: str) 
         numbers_ok = _numbers_supported(flashcard.answer, source_context)
         flashcard.provenance_verified = evidence_ok and numbers_ok
         if flashcard.provenance_verified:
+            flashcard.source_section = _locate_evidence_section(flashcard.evidence, parsed)
             flashcard.question = flashcard.question[:240]
             flashcard.answer = flashcard.answer[:700]
             verified_flashcards.append(flashcard)
@@ -143,6 +170,8 @@ def validate_story(story: PaperStory, parsed: ParsedPaper, source_context: str) 
     story.key_concepts = [concept[:120] for concept in story.key_concepts[:8] if concept.strip()]
     story.short_title = story.short_title[:100] or source.title[:100]
     story.one_line_summary = story.one_line_summary[:320]
+    if story.one_line_summary and not _numbers_supported(story.one_line_summary, source_context):
+        story.one_line_summary = story.cards[0].body[:320] if story.cards else source.title[:320]
 
     minimum_cards = 3 if parsed.source_quality == "abstract" else 4
     if len(story.cards) < minimum_cards:
