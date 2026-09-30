@@ -147,3 +147,34 @@ LitRevBuddy/
 GitHub Pages is the primary application. The previous Streamlit implementation is retained only on `legacy/streamlit-app` for historical reference and rollback.
 
 Issues and feature requests should be opened through the repository templates. Pull requests should target `main` and must pass CI before merge.
+
+## Citation graphs with Graphify
+
+LitRevBuddy can publish a sanitized Graphify knowledge graph into **Explore → Citation graph**.
+
+Graphify itself runs locally, not on GitHub Pages. The recommended workflow is:
+
+```bash
+uv tool install graphifyy
+graphify install
+```
+
+Then, from Claude Code, run Graphify against a local folder containing the papers you want to map:
+
+```text
+/graphify /path/to/paper-corpus
+```
+
+Graphify writes `graphify-out/graph.json`, `GRAPH_REPORT.md`, and `graph.html`. Do **not** commit the raw output directly because `source_file` fields can contain local paths.
+
+Publish the sanitized graph with:
+
+```bash
+python scripts/publish_graphify.py \
+  --input /path/to/graphify-out/graph.json \
+  --output web/data/citation-graph/graph.json
+```
+
+Commit only the sanitized `web/data/citation-graph/graph.json`. The public frontend automatically detects it.
+
+The citation-map UI can also open a local `graph.json` directly. That file remains in browser memory and is not uploaded or persisted by LitRevBuddy.
