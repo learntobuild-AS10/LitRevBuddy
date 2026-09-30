@@ -143,8 +143,6 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 }
 @media (max-width: 760px) {
   .block-container { padding-top: .8rem; }
-  .lrb-brand { font-size: 2.15rem; }
-  .lrb-tagline { font-size: .95rem; }
 }
 </style>
 """
@@ -155,13 +153,9 @@ def inject_global_styles() -> None:
 
 
 def render_app_header(paper_count: int) -> None:
-    title_col, count_col = st.columns([1.35, 4.65], vertical_alignment="center")
-    with title_col:
-        st.title("LitRevBuddy")
-    with count_col:
-        st.caption(f"{paper_count:,} indexed papers")
-
-    st.markdown(
+    st.title("LitRevBuddy")
+    st.caption(f"{paper_count:,} indexed papers")
+    st.write(
         "Search recent AI research, understand where a paper fits, find related work, "
         "and turn dense papers into source-grounded study stories."
     )
