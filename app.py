@@ -116,14 +116,15 @@ apply_pending_state_updates()
 
 render_app_header(len(df))
 
-navigation = st.radio(
-    "Navigation",
-    NAV_OPTIONS,
-    horizontal=True,
-    format_func=lambda value: NAV_LABELS[value],
-    label_visibility="collapsed",
-    key="primary_nav",
-)
+with st.container(key="top_nav"):
+    navigation = st.radio(
+        "Navigation",
+        NAV_OPTIONS,
+        horizontal=True,
+        format_func=lambda value: NAV_LABELS[value],
+        label_visibility="collapsed",
+        key="primary_nav",
+    )
 
 if navigation == "Search":
     if st.session_state.get("search_view") == "paper" and st.session_state.get("selected_paper_id"):
