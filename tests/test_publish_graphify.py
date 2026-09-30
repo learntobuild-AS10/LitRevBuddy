@@ -47,7 +47,7 @@ class GraphifyPublisherTests(unittest.TestCase):
         self.assertEqual(clean["nodes"][1]["source_file"], "paper-b.pdf")
         self.assertIsNone(clean["nodes"][1]["litrevbuddy_id"])
         self.assertEqual(clean["nodes"][1]["source_url"], "https://arxiv.org/abs/1234.5678")
-        self.assertEqual(clean["edges"][0]["source_file"], "7230__paper-a.pdf")
+        self.assertEqual(clean["edges"][0]["source_file"], "paper-a.pdf")
         self.assertEqual(clean["edges"][0]["relation"], "cites")
 
         encoded = json.dumps(clean)
