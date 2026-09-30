@@ -56,7 +56,7 @@ jobs:
             echo "Persistent browser storage or cookies are not allowed in the public app."
             exit 1
           fi
-          if grep -En '<script[^>]+src=["'\'']https?://' web/*.html; then
+          if grep -En "<script[^>]+src=['\"]https?://" web/*.html; then
             echo "Third-party script tags are not allowed."
             exit 1
           fi
