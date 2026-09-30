@@ -9,3 +9,6 @@ requests
 pypdf
 pydantic>=2
 openai
+beautifulsoup4
+lxml
+tqdm
