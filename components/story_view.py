@@ -24,6 +24,7 @@ from services.paper_parser import PDFParseError, parse_pdf_bytes, parsed_from_ab
 from services.similarity import clean_text, get_related_by_text, get_similar_papers
 from services.story_generator import StoryGenerationError, generate_story
 from utils.caching import sha256_bytes, sha256_text, story_cache_key
+from utils.navigation import queue_state_updates
 
 
 STORY_CSS = """
@@ -387,10 +388,11 @@ def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
             source_for_back = PaperSource.model_validate(selected_source)
             if source_for_back.source_kind == "library" and source_for_back.paper_id:
                 if st.button("← Back to paper", key="story_back_to_paper"):
-                    st.session_state["selected_paper_id"] = int(source_for_back.paper_id)
-                    st.session_state["search_view"] = "paper"
-                    st.session_state["primary_nav"] = "Search"
-                    st.rerun()
+                    queue_state_updates(
+                        selected_paper_id=int(source_for_back.paper_id),
+                        search_view="paper",
+                        primary_nav="Search",
+                    )
         except (TypeError, ValueError):
             pass
 
