@@ -122,6 +122,14 @@ STORY_CSS = """
   }
   .story-body { font-size: .95rem; }
 }
+.story-source-title {
+    font-size: clamp(1.35rem, 2.4vw, 1.9rem);
+    line-height: 1.2;
+    font-weight: 760;
+    letter-spacing: -.018em;
+    max-width: 980px;
+    margin: .15rem 0 .4rem;
+}
 </style>
 """
 
@@ -268,7 +276,7 @@ def _generate(parsed: ParsedPaper) -> None:
 
 
 def _handle_library_source(source: PaperSource) -> None:
-    st.subheader(source.title)
+    st.html(f'<div class="story-source-title">{html.escape(source.title)}</div>')
     meta = " · ".join(bit for bit in [source.venue, str(source.year or ""), source.authors] if bit)
     if meta:
         st.caption(meta)
@@ -500,8 +508,8 @@ def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
 
     render_page_header(
         "Paper Stories",
-        "Turn a dense paper into a study-friendly walkthrough",
-        "Choose a paper, decide how much source text to use, then generate verified cards for the problem, method, evidence, limitations, and takeaways.",
+        "Understand a paper, one card at a time",
+        "Choose a source, then generate concise, evidence-backed cards for the core idea, method, results, and limitations.",
     )
 
     provider_options = ["Free public · OpenRouter"]
