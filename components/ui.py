@@ -28,7 +28,8 @@ GLOBAL_CSS = """
   margin: 1rem 0;
 }
 .lrb-hero {
-  padding: 1.15rem 0 .85rem;
+  padding: 1.05rem 0 .85rem;
+  overflow: visible;
 }
 .lrb-brand-row {
   display: flex;
@@ -37,10 +38,13 @@ GLOBAL_CSS = """
   flex-wrap: wrap;
 }
 .lrb-brand {
+  display: inline-block;
   font-size: clamp(2rem, 5vw, 3.35rem);
-  font-weight: 850;
-  line-height: 1;
-  letter-spacing: -.045em;
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -.04em;
+  padding: .08em 0 .12em;
+  overflow: visible;
 }
 .lrb-badge {
   display: inline-flex;
