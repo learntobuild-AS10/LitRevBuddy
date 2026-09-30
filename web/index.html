@@ -168,7 +168,7 @@
     </section>
   </main>
 
-  <aside id="paperDrawer" class="drawer" aria-hidden="true" aria-label="Paper details">
+  <aside id="paperDrawer" class="drawer" aria-hidden="true" aria-label="Paper details" role="dialog" aria-modal="true">
     <div class="drawer-backdrop" data-close-drawer></div>
     <div class="drawer-panel">
       <button class="drawer-close" data-close-drawer aria-label="Close paper">×</button>
@@ -176,13 +176,14 @@
     </div>
   </aside>
 
-  <aside id="storyModal" class="story-modal" aria-hidden="true" aria-label="Paper story">
+  <aside id="storyModal" class="story-modal" aria-hidden="true" aria-label="Paper story" role="dialog" aria-modal="true">
     <div class="story-backdrop" data-close-story></div>
     <div class="story-panel">
       <div class="story-topbar">
         <button class="story-close" data-close-story>← Back to paper</button>
         <div class="story-mode-actions">
-          <button id="extractiveStoryBtn" class="mode-btn active">Source cards</button>
+          <button id="extractiveStoryBtn" class="mode-btn active">Quick story</button>
+          <button id="deepStoryBtn" class="mode-btn">Deep story</button>
           <button id="aiStoryBtn" class="mode-btn">AI story</button>
         </div>
       </div>
