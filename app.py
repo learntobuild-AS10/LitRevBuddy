@@ -188,7 +188,7 @@ if navigation == "Search":
     )
 
     query = st.text_input(
-        "Search 67,343 papers",
+        f"Search {len(df):,} papers",
         key="global_query",
         placeholder="e.g. multimodal glioblastoma survival prediction",
         label_visibility="collapsed",
