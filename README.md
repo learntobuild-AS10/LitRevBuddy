@@ -1,8 +1,12 @@
 # LitRevBuddy
 
+[![Live Site](https://img.shields.io/badge/Open-LitRevBuddy-ff6b57?style=for-the-badge)](https://learntobuild-as10.github.io/LitRevBuddy/)
+[![Tests](https://github.com/learntobuild-AS10/LitRevBuddy/actions/workflows/test.yml/badge.svg)](https://github.com/learntobuild-AS10/LitRevBuddy/actions/workflows/test.yml)
+[![Deploy](https://github.com/learntobuild-AS10/LitRevBuddy/actions/workflows/pages.yml/badge.svg)](https://github.com/learntobuild-AS10/LitRevBuddy/actions/workflows/pages.yml)
+
 LitRevBuddy is a static-first research discovery app for finding, understanding, and connecting recent AI papers.
 
-**Live site:** https://learntobuild-as10.github.io/LitRevBuddy/
+**Website:** https://learntobuild-as10.github.io/LitRevBuddy/
 
 The current catalog contains **67,343 papers** across AAAI, ACL, CVPR, ICCV, ICLR, ICML, MICCAI, NeurIPS, and WACV, covering 2024–2026. The research-data pipeline remains Python-based; the public product is plain HTML/CSS/JavaScript deployed through GitHub Pages.
 
@@ -123,3 +127,23 @@ The former Streamlit implementation is preserved on the `legacy/streamlit-app` b
 ## CI
 
 `.github/workflows/test.yml` checks the Python data pipeline, browser catalog, frontend JavaScript, required public files, catalog counts, and privacy invariants.
+
+## Repository structure
+
+```text
+LitRevBuddy/
+├── artifacts/                 # committed search/clustering artifacts
+├── scripts/                   # ingestion, feature building, web catalog build
+├── web/                       # production GitHub Pages frontend
+├── .github/workflows/         # CI + deployment
+├── CONTRIBUTING.md
+├── SECURITY.md
+├── requirements.txt
+└── README.md
+```
+
+## Project status
+
+GitHub Pages is the primary application. The previous Streamlit implementation is retained only on `legacy/streamlit-app` for historical reference and rollback.
+
+Issues and feature requests should be opened through the repository templates. Pull requests should target `main` and must pass CI before merge.
