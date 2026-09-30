@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from difflib import SequenceMatcher
 from typing import TYPE_CHECKING
 
 from models.story import PaperStory, ParsedPaper
@@ -108,14 +109,64 @@ def _clip_words(text: str, max_words: int) -> str:
 
 
 def _normalize_for_match(text: str) -> str:
-    return " ".join((text or "").split()).casefold()
+    text = (text or "").replace("\u00ad", "")
+    text = re.sub(r"(?<=\\w)-\\s*\\n\\s*(?=\\w)", "", text)
+    text = text.replace("–", "-").replace("—", "-")
+    return " ".join(text.split()).casefold()
+
+
+def _match_tokens(text: str) -> list[str]:
+    normalized = _normalize_for_match(text)
+    return re.findall(r"[a-z0-9]+(?:\\.[0-9]+)?%?", normalized)
+
+
+def _recover_evidence_span(evidence: str, source_text: str) -> str | None:
+    evidence_norm = _normalize_for_match(evidence)
+    source_norm = _normalize_for_match(source_text)
+    if len(evidence_norm) < 12:
+        return None
+
+    if evidence_norm in source_norm:
+        return evidence.strip()
+
+    evidence_tokens = _match_tokens(evidence)
+    source_tokens = _match_tokens(source_text)
+    if len(evidence_tokens) < 5 or len(source_tokens) < len(evidence_tokens):
+        return None
+
+    width = len(evidence_tokens)
+
+    # First accept an exact token sequence. This tolerates PDF whitespace,
+    # punctuation, and line-wrap differences without weakening provenance.
+    for start in range(0, len(source_tokens) - width + 1):
+        window = source_tokens[start : start + width]
+        if window == evidence_tokens:
+            return " ".join(window)
+
+    # Some PDF extractors split/join a token around line breaks. Permit only
+    # a very-high-similarity local match and require all numeric claims to
+    # remain identical.
+    best_ratio = 0.0
+    best_window: list[str] | None = None
+    for candidate_width in range(max(5, width - 2), min(len(source_tokens), width + 2) + 1):
+        for start in range(0, len(source_tokens) - candidate_width + 1):
+            window = source_tokens[start : start + candidate_width]
+            ratio = SequenceMatcher(None, evidence_tokens, window, autojunk=False).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_window = window
+
+    if best_window is None or best_ratio < 0.94:
+        return None
+
+    candidate = " ".join(best_window)
+    if not _numbers_supported(evidence, candidate):
+        return None
+    return candidate
 
 
 def evidence_is_supported(evidence: str, source_context: str) -> bool:
-    evidence_norm = _normalize_for_match(evidence)
-    if len(evidence_norm) < 12:
-        return False
-    return evidence_norm in _normalize_for_match(source_context)
+    return _recover_evidence_span(evidence, source_context) is not None
 
 
 def _numbers_supported(text: str, source_context: str) -> bool:
@@ -126,15 +177,14 @@ def _numbers_supported(text: str, source_context: str) -> bool:
 
 
 def _locate_evidence_section(evidence: str, parsed: ParsedPaper) -> str:
-    evidence_norm = _normalize_for_match(evidence)
-    if not evidence_norm:
+    if not _normalize_for_match(evidence):
         return "source"
 
     for section, text in parsed.sections.items():
-        if evidence_norm in _normalize_for_match(text):
+        if _recover_evidence_span(evidence, text):
             return section
 
-    if evidence_norm in _normalize_for_match(parsed.full_text):
+    if _recover_evidence_span(evidence, parsed.full_text):
         return "full_text"
 
     metadata_values = [
@@ -162,13 +212,16 @@ def validate_story(story: PaperStory, parsed: ParsedPaper, source_context: str) 
     story.source_quality = parsed.source_quality
     story.generated_from = sorted(parsed.sections.keys()) if parsed.sections else ["full_text"]
 
+    generated_card_count = min(len(story.cards), 9)
     verified_cards = []
     for card in story.cards[:9]:
         combined = " ".join([card.headline, card.body, *card.bullets])
-        evidence_ok = evidence_is_supported(card.evidence, source_context)
+        recovered_evidence = _recover_evidence_span(card.evidence, source_context)
+        evidence_ok = recovered_evidence is not None
         numbers_ok = _numbers_supported(combined, source_context)
         card.provenance_verified = evidence_ok and numbers_ok
         if card.provenance_verified:
+            card.evidence = recovered_evidence or card.evidence
             card.source_section = _locate_evidence_section(card.evidence, parsed)
             card.headline = _clip_words(card.headline, CARD_HEADLINE_MAX_WORDS)
             card.body = _clip_words(card.body, CARD_BODY_MAX_WORDS)
@@ -183,10 +236,12 @@ def validate_story(story: PaperStory, parsed: ParsedPaper, source_context: str) 
 
     verified_flashcards = []
     for flashcard in story.flashcards[:5]:
-        evidence_ok = evidence_is_supported(flashcard.evidence, source_context)
+        recovered_evidence = _recover_evidence_span(flashcard.evidence, source_context)
+        evidence_ok = recovered_evidence is not None
         numbers_ok = _numbers_supported(flashcard.answer, source_context)
         flashcard.provenance_verified = evidence_ok and numbers_ok
         if flashcard.provenance_verified:
+            flashcard.evidence = recovered_evidence or flashcard.evidence
             flashcard.source_section = _locate_evidence_section(flashcard.evidence, parsed)
             flashcard.question = _clip_words(
                 flashcard.question,
@@ -209,10 +264,11 @@ def validate_story(story: PaperStory, parsed: ParsedPaper, source_context: str) 
             else _clip_words(source.title, SUMMARY_MAX_WORDS)
         )
 
-    minimum_cards = 3 if parsed.source_quality == "abstract" else 4
+    minimum_cards = 3
     if len(story.cards) < minimum_cards:
         raise StoryGenerationError(
-            "Too few generated cards passed provenance checks. Try the full paper, or regenerate with a cleaner source."
+            f"Only {len(story.cards)} of {generated_card_count} generated cards could be verified against the source. "
+            "Try Quick story, regenerate, or use a cleaner PDF."
         )
     return story
 
