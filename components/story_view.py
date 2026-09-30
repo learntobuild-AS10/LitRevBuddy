@@ -276,7 +276,11 @@ def _generate(parsed: ParsedPaper) -> None:
 
 
 def _handle_library_source(source: PaperSource) -> None:
-    st.html(f'<div class="story-source-title">{html.escape(source.title)}</div>')
+    st.html(
+        f'<div style="font-size:clamp(1.35rem,2.4vw,1.9rem);line-height:1.2;'
+        f'font-weight:760;letter-spacing:-.018em;max-width:980px;margin:.15rem 0 .4rem;">'
+        f'{html.escape(source.title)}</div>'
+    )
     meta = " · ".join(bit for bit in [source.venue, str(source.year or ""), source.authors] if bit)
     if meta:
         st.caption(meta)
