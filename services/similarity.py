@@ -8,6 +8,11 @@ from sklearn.preprocessing import normalize
 def clean_text(value) -> str:
     if value is None:
         return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
     return " ".join(str(value).split())
 
 
