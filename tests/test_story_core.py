@@ -174,7 +174,7 @@ The results report an accuracy of 91.2% on Dataset X under the stated setup.
         response = SimpleNamespace(
             choices=[
                 SimpleNamespace(
-                    message=SimpleNamespace(content=f"\`\`\`json\\n{story.model_dump_json()}\\n\`\`\`")
+                    message=SimpleNamespace(content=f"```json\n{story.model_dump_json()}\n```")
                 )
             ]
         )
