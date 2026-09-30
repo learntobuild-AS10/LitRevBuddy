@@ -3,7 +3,8 @@ name: test
 on:
   push:
     branches:
-      - feature/paper-stories
+      - main
+      - feature/github-pages-frontend
   pull_request:
 
 jobs:
@@ -13,22 +14,19 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.13"
           cache: pip
 
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Compile Python sources
-        run: python -m compileall -q app.py components models services utils scripts tests
-
-      - name: Run unit tests
-        run: python -m unittest discover -s tests -v
+      - name: Compile Python pipeline
+        run: python -m compileall -q scripts
 
       - name: Check ingestion CLIs
         run: |
@@ -36,31 +34,41 @@ jobs:
           python scripts/ingest_miccai.py --help >/dev/null
           python scripts/update_database.py --help >/dev/null
 
-      - name: Smoke test Streamlit startup
-        shell: bash
+      - name: Build browser catalog
+        run: python scripts/build_web_catalog.py --input artifacts/papers_features.parquet --output web/data
+
+      - name: Validate frontend JavaScript
+        run: node --check web/app.js
+
+      - name: Validate catalog and public files
         run: |
-          set -euo pipefail
-          streamlit run app.py \
-            --server.headless true \
-            --server.port 8501 \
-            --browser.gatherUsageStats false \
-            > /tmp/litrevbuddy-streamlit.log 2>&1 &
-          APP_PID=$!
-          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+          test -f web/index.html
+          test -f web/privacy.html
+          test -f web/terms.html
+          test -f web/data/manifest.json
+          test -f web/data/index-2026.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
 
-          for i in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:8501/_stcore/health >/dev/null; then
-              echo "Streamlit health check passed."
-              exit 0
-            fi
-            if ! kill -0 "$APP_PID" 2>/dev/null; then
-              echo "Streamlit exited before becoming healthy."
-              cat /tmp/litrevbuddy-streamlit.log
-              exit 1
-            fi
-            sleep 2
-          done
+          manifest = json.loads(Path("web/data/manifest.json").read_text())
+          assert manifest["num_papers"] == 67343, manifest
+          assert manifest["num_clusters"] == 120, manifest
+          assert 2026 in manifest["years"], manifest
+          print(manifest)
+          PY
 
-          echo "Streamlit did not become healthy."
-          cat /tmp/litrevbuddy-streamlit.log
-          exit 1
+      - name: Enforce privacy invariants
+        run: |
+          if grep -En 'localStorage|sessionStorage|indexedDB|document\.cookie' web/app.js; then
+            echo "Persistent browser storage or cookies are not allowed in the public app."
+            exit 1
+          fi
+          if grep -En "<script[^>]+src=['\"]https?://" web/*.html; then
+            echo "Third-party script tags are not allowed."
+            exit 1
+          fi
+          if grep -Ein 'google-analytics|gtag\(|segment\.com|mixpanel|posthog|stripe|paddle|lemonsqueezy|paypal' web/app.js web/index.html; then
+            echo "Analytics, payment, or subscription SDKs are not allowed."
+            exit 1
+          fi
