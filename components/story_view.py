@@ -380,6 +380,20 @@ def _render_related(story: PaperStory, df, vectorizer, svd, nn, vectors) -> None
 
 def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
     _init_state()
+
+    selected_source = st.session_state.get("story_source")
+    if selected_source:
+        try:
+            source_for_back = PaperSource.model_validate(selected_source)
+            if source_for_back.source_kind == "library" and source_for_back.paper_id:
+                if st.button("← Back to paper", key="story_back_to_paper"):
+                    st.session_state["selected_paper_id"] = int(source_for_back.paper_id)
+                    st.session_state["search_view"] = "paper"
+                    st.session_state["primary_nav"] = "Search"
+                    st.rerun()
+        except (TypeError, ValueError):
+            pass
+
     render_page_header(
         "Paper Stories",
         "Turn a dense paper into a study-friendly walkthrough",
