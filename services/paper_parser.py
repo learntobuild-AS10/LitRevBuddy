@@ -84,17 +84,32 @@ def parse_pdf_bytes(data: bytes, source: PaperSource) -> ParsedPaper:
     except Exception as exc:
         raise PDFParseError("The PDF could not be opened.") from exc
 
-    if len(reader.pages) == 0:
+    if reader.is_encrypted:
+        try:
+            decrypted = reader.decrypt("")
+        except Exception as exc:
+            raise PDFParseError("The PDF is encrypted and could not be opened without a password.") from exc
+        if not decrypted:
+            raise PDFParseError("The PDF is password-protected. Upload an unlocked copy.")
+
+    try:
+        page_count = len(reader.pages)
+    except Exception as exc:
+        raise PDFParseError("The PDF page structure could not be read.") from exc
+
+    if page_count == 0:
         raise PDFParseError("The PDF contains no readable pages.")
 
     notes: list[str] = []
-    if len(reader.pages) > MAX_PAGES:
+    if page_count > MAX_PAGES:
         notes.append(f"Only the first {MAX_PAGES} pages were parsed.")
 
     page_texts = []
     total_chars = 0
-    for page_number, page in enumerate(reader.pages[:MAX_PAGES], start=1):
+    for page_index in range(min(page_count, MAX_PAGES)):
+        page_number = page_index + 1
         try:
+            page = reader.pages[page_index]
             text = page.extract_text() or ""
         except Exception:
             notes.append(f"Page {page_number} could not be extracted.")
