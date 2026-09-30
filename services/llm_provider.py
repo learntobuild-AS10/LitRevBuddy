@@ -37,17 +37,34 @@ def claude_code_available() -> bool:
 
 def _extract_json_object(text: str) -> str:
     text = (text or "").strip()
-    if text.startswith("~~~"):
-        text = re.sub(r"^~~~(?:json)?\\s*", "", text, flags=re.I)
-        text = re.sub(r"\\s*~~~$", "", text)
+    if not text:
+        raise LLMProviderError("The model returned an empty response.")
+
+    # Free/local models often wrap otherwise-valid JSON in Markdown fences.
+    text = re.sub(r"^(?:```|~~~)(?:json)?\\s*", "", text, flags=re.I)
+    text = re.sub(r"\\s*(?:```|~~~)$", "", text)
+
     try:
-        json.loads(text)
-        return text
+        value = json.loads(text)
+        if isinstance(value, dict):
+            return text
     except json.JSONDecodeError:
-        match = re.search(r"\\{.*\\}", text, flags=re.S)
-        if not match:
-            raise LLMProviderError("Claude returned a response that did not contain valid story JSON.")
-        return match.group(0)
+        pass
+
+    # Robustly recover the first complete JSON object without a greedy
+    # first-brace-to-last-brace regex, which breaks on surrounding prose.
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(text):
+        if char != "{":
+            continue
+        try:
+            value, end = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return text[index : index + end]
+
+    raise LLMProviderError("The model response did not contain a valid JSON object.")
 
 
 class ClaudeCodeStoryProvider(StoryLLMProvider):
