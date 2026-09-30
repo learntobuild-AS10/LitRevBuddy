@@ -114,23 +114,48 @@ def extract_authors(soup):
         if text in {"Author(s):", "Author(s)"}:
             heading = tag
             break
-    if heading is None:
-        return None
 
-    names = []
-    for sibling in heading.find_next_siblings():
-        if sibling.name in {"h1", "h2", "h3", "h4", "hr"}:
-            break
-        for anchor in sibling.find_all("a"):
-            name = clean_text(anchor.get_text(" ", strip=True))
-            if name and name not in names:
-                names.append(name)
+    if heading is not None:
+        names = []
 
-    if names:
-        return ", ".join(names)
+        # MICCAI's current pages place author links after the Author(s)
+        # heading, but not necessarily as direct siblings. Walk forward in
+        # document order until the next section boundary.
+        for node in heading.find_all_next():
+            if node is heading:
+                continue
+            if node.name == "hr":
+                break
+            if node.name in {"h1", "h2", "h3", "h4"}:
+                break
+            if node.name == "a":
+                name = clean_text(node.get_text(" ", strip=True))
+                if name and name not in names:
+                    names.append(name)
 
-    block = heading.find_next_sibling()
-    return clean_text(block.get_text(" ", strip=True)) if block else None
+        if names:
+            return ", ".join(names)
+
+    # Robust fallback: every MICCAI paper page also exposes a BibTeX author
+    # field. This avoids dropping authors if the HTML layout changes.
+    page_text = soup.get_text("\n", strip=True)
+    match = re.search(
+        r"author\s*=\s*\{(.*?)\}\s*,\s*title\s*=",
+        page_text,
+        flags=re.I | re.S,
+    )
+    if match:
+        raw = clean_text(match.group(1))
+        if raw:
+            authors = [
+                clean_text(part)
+                for part in re.split(r"\s+AND\s+", raw, flags=re.I)
+                if clean_text(part)
+            ]
+            if authors:
+                return ", ".join(authors)
+
+    return None
 
 
 def extract_pdf_url(soup, paper_url):
