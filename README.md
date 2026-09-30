@@ -148,33 +148,52 @@ GitHub Pages is the primary application. The previous Streamlit implementation i
 
 Issues and feature requests should be opened through the repository templates. Pull requests should target `main` and must pass CI before merge.
 
-## Citation graphs with Graphify
+## Research graphs
 
-LitRevBuddy can publish a sanitized Graphify knowledge graph into **Explore → Citation graph**.
+LitRevBuddy separates bibliographic and semantic relationships instead of treating them as the same graph.
 
-Graphify itself runs locally, not on GitHub Pages. The recommended workflow is:
+### Citation map
+
+The citation map is built from explicit paper references returned by the Semantic Scholar Academic Graph API. For the initial 30-paper multimodal-medical-AI pilot:
 
 ```bash
-uv tool install graphifyy
-graphify install
+python scripts/build_citation_graph.py
 ```
 
-Then, from Claude Code, run Graphify against a local folder containing the papers you want to map:
+The script:
+
+- resolves each selected LitRevBuddy paper against Semantic Scholar using closest-title matching
+- rejects low-confidence title/year matches
+- fetches references for each resolved paper
+- keeps citation edges whose source and target are both in the selected LitRevBuddy corpus
+- writes `web/data/citation-graph/graph.json`
+
+Set `S2_API_KEY` if you have a Semantic Scholar API key. The script can run without one, but intentionally uses a slower request cadence and retries rate limits.
+
+### Knowledge map with Graphify
+
+Graphify is reserved for the semantic layer: concepts, methods, datasets, tasks, and other relationships that are not ordinary bibliographic citation edges.
+
+No PDFs are required for the default workflow. Export the selected LitRevBuddy records as Markdown containing title, authors, venue/year, abstract, topic, and verified citations:
+
+```bash
+python scripts/export_graphify_corpus.py \
+  --citation-graph web/data/citation-graph/graph.json \
+  --output "$HOME/Documents/LitRevBuddy-Graphify-Corpus" \
+  --clean-output
+```
+
+Then run Graphify locally through Claude Code on that external folder:
 
 ```text
-/graphify /path/to/paper-corpus
+/graphify ~/Documents/LitRevBuddy-Graphify-Corpus
 ```
 
-Graphify writes `graphify-out/graph.json`, `GRAPH_REPORT.md`, and `graph.html`. Do **not** commit the raw output directly because `source_file` fields can contain local paths.
+The corpus remains outside Git. Raw Graphify output should not be committed. Once the first real output has been validated, it can be sanitized and published as the separate **Explore → Knowledge map** dataset.
 
-Publish the sanitized graph with:
+This produces three distinct research-navigation views:
 
-```bash
-python scripts/publish_graphify.py \
-  --input /path/to/graphify-out/graph.json \
-  --output web/data/citation-graph/graph.json
-```
-
-Commit only the sanitized `web/data/citation-graph/graph.json`. The public frontend automatically detects it.
-
-The citation-map UI can also open a local `graph.json` directly. That file remains in browser memory and is not uploaded or persisted by LitRevBuddy.
+- **Topics**: cluster-level themes learned by LitRevBuddy
+- **Topic map**: semantic similarity between papers
+- **Citation map**: explicit bibliographic dependencies
+- **Knowledge map**: Graphify semantic relationships
