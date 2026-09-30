@@ -162,7 +162,8 @@ def fetch_pdf_bytes(url: str, *, max_bytes: int = MAX_PDF_BYTES) -> bytes:
 def fetch_page_metadata(url: str) -> PaperSource:
     normalized = normalize_user_url(url)
     direct_pdf = resolve_pdf_url(normalized)
-    if direct_pdf:
+    normalized_path = urlparse(normalized).path.lower()
+    if direct_pdf and normalized_path.endswith(".pdf"):
         return PaperSource(
             paper_id=normalized,
             title="External paper",
@@ -215,6 +216,8 @@ def fetch_page_metadata(url: str) -> PaperSource:
     pdf_url = first("citation_pdf_url")
     if pdf_url:
         pdf_url = urljoin(final_url, pdf_url)
+    else:
+        pdf_url = resolve_pdf_url(final_url) or direct_pdf
     venue = first("citation_conference_title", "citation_journal_title")
     year_text = first("citation_publication_date", "citation_date")
     year_match = re.search(r"(?:19|20)\d{2}", year_text)
