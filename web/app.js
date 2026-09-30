@@ -12,9 +12,10 @@ const state = {
   rendered: [],
   keyboardIndex: -1,
   activePaper: null,
-  saved: new Set(JSON.parse(localStorage.getItem("lrb:saved") || "[]").map(Number)),
-  recent: JSON.parse(localStorage.getItem("lrb:recent") || "[]").map(Number),
-  theme: localStorage.getItem("lrb:theme") || "dark",
+  saved: new Set(),
+  recent: [],
+  theme: window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark",
+  openRouterKey: "",
   storyCards: [],
   storyIndex: 0,
 };
@@ -240,8 +241,8 @@ async function openPaper(id) {
     <div class="drawer-actions">
       <button class="action-btn primary" id="storyFromPaper">Story</button>
       <button class="action-btn ${state.saved.has(Number(paper.id)) ? "saved" : ""}" data-save-paper="${paper.id}">${state.saved.has(Number(paper.id)) ? "Saved" : "Save"}</button>
-      ${paper.p ? `<a class="action-btn" href="${esc(paper.p)}" target="_blank" rel="noopener">Paper ↗</a>` : ""}
-      ${paper.pdf ? `<a class="action-btn" href="${esc(paper.pdf)}" target="_blank" rel="noopener">PDF ↗</a>` : ""}
+      ${paper.p ? `<a class="action-btn" href="${esc(paper.p)}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Paper ↗</a>` : ""}
+      ${paper.pdf ? `<a class="action-btn" href="${esc(paper.pdf)}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">PDF ↗</a>` : ""}
     </div>
     <section class="drawer-section">
       <h3>Abstract</h3>
@@ -357,23 +358,35 @@ function normalizeEvidence(value) {
 async function aiStory() {
   const paper = state.activePaper;
   if (!paper) return;
-  let key = sessionStorage.getItem("lrb:openrouter-key") || "";
+  let key = state.openRouterKey || "";
   if (!key) {
     $("#storyContent").innerHTML = `
       <div class="story-stage">
         <div class="ai-connect">
           <div class="eyebrow">Optional AI mode</div>
           <h2>Use your free OpenRouter key</h2>
-          <p>Your key stays in this browser session and is sent directly to OpenRouter. LitRevBuddy does not store it.</p>
+          <p>Your key is kept only in page memory and is sent directly from your browser to OpenRouter. LitRevBuddy does not persist it.</p>
           <input id="orKey" type="password" placeholder="sk-or-v1-…" autocomplete="off" />
-          <button id="connectAI" class="action-btn primary">Generate AI story</button>
+          <label class="consent-row">
+            <input id="aiConsent" type="checkbox" />
+            <span>I understand that generating an AI story sends this paper's abstract to OpenRouter, a third-party service. LitRevBuddy does not create an account, subscription, or payment for me.</span>
+          </label>
+          <button id="connectAI" class="action-btn primary" disabled>Generate AI story</button>
           <button id="cancelAI" class="action-btn">Use source cards instead</button>
         </div>
       </div>`;
-    $("#connectAI").addEventListener("click",()=>{
-      const entered=$("#orKey").value.trim();
-      if(!entered) return;
-      sessionStorage.setItem("lrb:openrouter-key",entered);
+    const keyInput = $("#orKey");
+    const consent = $("#aiConsent");
+    const connect = $("#connectAI");
+    const refreshConnectState = () => {
+      connect.disabled = !(keyInput.value.trim() && consent.checked);
+    };
+    keyInput.addEventListener("input", refreshConnectState);
+    consent.addEventListener("change", refreshConnectState);
+    connect.addEventListener("click",()=>{
+      const entered=keyInput.value.trim();
+      if(!entered || !consent.checked) return;
+      state.openRouterKey = entered;
       aiStory();
     });
     $("#cancelAI").addEventListener("click",()=>{ $("#extractiveStoryBtn").click(); });
@@ -416,7 +429,7 @@ async function aiStory() {
   } catch(error) {
     console.error(error);
     toast("AI route unavailable — showing source cards");
-    sessionStorage.removeItem("lrb:openrouter-key");
+    state.openRouterKey = "";
     state.storyCards=extractiveCards(paper);
     state.storyIndex=0;
     $("#extractiveStoryBtn").classList.add("active");
@@ -429,7 +442,6 @@ function toggleSave(id) {
   id=Number(id);
   if(state.saved.has(id)){state.saved.delete(id);toast("Removed from saved")}
   else{state.saved.add(id);toast("Saved")}
-  localStorage.setItem("lrb:saved",JSON.stringify([...state.saved]));
   $("#savedCount").textContent=state.saved.size;
   renderResults();
   if(state.route==="saved") renderSaved();
@@ -439,7 +451,6 @@ function toggleSave(id) {
 function addRecent(id) {
   id=Number(id);
   state.recent=[id,...state.recent.filter(x=>x!==id)].slice(0,12);
-  localStorage.setItem("lrb:recent",JSON.stringify(state.recent));
 }
 
 async function renderSaved() {
@@ -588,7 +599,6 @@ function bindGlobalUI(){
   $("#themeToggle").addEventListener("click",()=>{
     state.theme=state.theme==="dark"?"light":"dark";
     document.documentElement.dataset.theme=state.theme;
-    localStorage.setItem("lrb:theme",state.theme);
     if(state.route==="explore")renderMap();
   });
 
