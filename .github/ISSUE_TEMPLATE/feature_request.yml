@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an improvement to LitRevBuddy
+title: "[Feature] "
+labels: []
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What research workflow would this improve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy or data impact
+      description: Does this require storing user data, using another service, or sending paper content elsewhere?
