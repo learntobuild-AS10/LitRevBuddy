@@ -1,4 +1,5 @@
 name: deploy-pages
+# Re-run full deploy after Pages enablement
 
 on:
   push:
