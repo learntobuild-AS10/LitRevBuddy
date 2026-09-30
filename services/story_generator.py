@@ -110,14 +110,14 @@ def _clip_words(text: str, max_words: int) -> str:
 
 def _normalize_for_match(text: str) -> str:
     text = (text or "").replace("\u00ad", "")
-    text = re.sub(r"(?<=\\w)-\\s*\\n\\s*(?=\\w)", "", text)
+    text = re.sub(r"(?<=\w)-\s*\n\s*(?=\w)", "", text)
     text = text.replace("–", "-").replace("—", "-")
     return " ".join(text.split()).casefold()
 
 
 def _match_tokens(text: str) -> list[str]:
     normalized = _normalize_for_match(text)
-    return re.findall(r"[a-z0-9]+(?:\\.[0-9]+)?%?", normalized)
+    return re.findall(r"[a-z0-9]+(?:\.[0-9]+)?%?", normalized)
 
 
 def _recover_evidence_span(evidence: str, source_text: str) -> str | None:
