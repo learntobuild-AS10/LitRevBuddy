@@ -5,3 +5,7 @@ scikit-learn
 plotly
 pyarrow
 joblib
+requests
+pypdf
+pydantic>=2
+openai
