@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/paper-stories
+      - feature/ux-refresh
   pull_request:
 
 jobs:
