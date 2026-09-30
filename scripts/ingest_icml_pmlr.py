@@ -15,6 +15,7 @@ DB_PATH = "data/papers.db"
 VOLUMES = [
     (2024, "235"),
     (2025, "267"),
+    (2026, "306"),
 ]
 
 HEADERS = {
@@ -206,16 +207,24 @@ def parse_paper_page(session, year, fallback_title, paper_url):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--year", type=int, default=None, help="Only ingest a specific ICML year.")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--sleep", type=float, default=0.05)
     args = parser.parse_args()
+
+    selected_volumes = VOLUMES
+    if args.year is not None:
+        selected_volumes = [(year, volume) for year, volume in VOLUMES if year == args.year]
+        if not selected_volumes:
+            supported = ", ".join(str(year) for year, _ in VOLUMES)
+            parser.error(f"Unsupported ICML year {args.year}. Supported years: {supported}")
 
     session = requests.Session()
     conn = sqlite3.connect(DB_PATH)
 
     total_inserted = 0
 
-    for year, volume in VOLUMES:
+    for year, volume in selected_volumes:
         links = get_paper_links(session, year, volume)
 
         if args.limit:
