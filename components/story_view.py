@@ -29,36 +29,98 @@ from utils.navigation import queue_state_updates
 
 STORY_CSS = """
 <style>
-.story-shell { max-width: 560px; margin: 0 auto; }
+.story-shell {
+    width: min(100%, 620px);
+    margin: 0 auto;
+}
 .story-card {
-    min-height: 660px;
-    aspect-ratio: 9 / 16;
-    max-height: 780px;
-    padding: 2.1rem 2rem;
+    min-height: 700px;
+    padding: 2rem 2rem 1.7rem;
     border: 1px solid rgba(127,127,127,.24);
     border-radius: 28px;
     background: linear-gradient(155deg, rgba(99,102,241,.14), rgba(127,127,127,.035) 58%, rgba(14,165,233,.08));
     box-shadow: 0 18px 55px rgba(0,0,0,.08);
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    overflow: hidden;
+    overflow: visible;
 }
 .story-card[data-type="results"] { background: linear-gradient(155deg, rgba(16,185,129,.16), rgba(127,127,127,.03) 62%, rgba(6,182,212,.08)); }
 .story-card[data-type="limitations"] { background: linear-gradient(155deg, rgba(245,158,11,.16), rgba(127,127,127,.03) 62%, rgba(239,68,68,.07)); }
 .story-card[data-type="takeaway"] { background: linear-gradient(155deg, rgba(168,85,247,.16), rgba(127,127,127,.03) 62%, rgba(59,130,246,.08)); }
-.story-meta { font-size: .82rem; opacity: .72; letter-spacing: .02em; }
-.story-eyebrow { margin-top: 2rem; font-size: .78rem; font-weight: 750; text-transform: uppercase; letter-spacing: .12em; opacity: .72; }
-.story-headline { font-size: clamp(1.85rem, 4vw, 2.65rem); line-height: 1.06; font-weight: 800; margin: .65rem 0 1.1rem; }
-.story-body { font-size: 1.02rem; line-height: 1.55; opacity: .94; }
-.story-bullets { margin: 1.1rem 0 0; padding-left: 1.25rem; }
-.story-bullets li { margin: .55rem 0; line-height: 1.42; }
-.story-footer { display: flex; justify-content: space-between; gap: 1rem; font-size: .78rem; opacity: .65; margin-top: 1.4rem; }
-.story-progress { height: 5px; width: 100%; background: rgba(127,127,127,.20); border-radius: 999px; overflow: hidden; margin-bottom: 1rem; }
-.story-progress > div { height: 100%; background: currentColor; opacity: .65; }
+.story-meta {
+    font-size: .8rem;
+    opacity: .7;
+    letter-spacing: .02em;
+}
+.story-eyebrow {
+    margin-top: 1.8rem;
+    font-size: .76rem;
+    font-weight: 750;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    opacity: .72;
+}
+.story-headline {
+    font-size: clamp(1.7rem, 3.1vw, 2.35rem);
+    line-height: 1.08;
+    font-weight: 800;
+    letter-spacing: -.018em;
+    margin: .65rem 0 1rem;
+    overflow-wrap: anywhere;
+}
+.story-headline.long { font-size: clamp(1.5rem, 2.7vw, 2.05rem); }
+.story-headline.very-long { font-size: clamp(1.35rem, 2.35vw, 1.82rem); }
+.story-body {
+    font-size: .98rem;
+    line-height: 1.55;
+    opacity: .92;
+    overflow-wrap: anywhere;
+}
+.story-bullets {
+    margin: 1rem 0 0;
+    padding-left: 1.15rem;
+}
+.story-bullets li {
+    margin: .45rem 0;
+    line-height: 1.42;
+}
+.story-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    font-size: .76rem;
+    opacity: .62;
+    margin-top: auto;
+    padding-top: 1.5rem;
+}
+.story-progress {
+    height: 5px;
+    width: 100%;
+    background: rgba(127,127,127,.20);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+.story-progress > div {
+    height: 100%;
+    background: currentColor;
+    opacity: .65;
+}
 @media (max-width: 700px) {
-  .story-card { min-height: 600px; padding: 1.6rem 1.45rem; border-radius: 22px; }
-  .story-headline { font-size: 2rem; }
+  .story-shell { width: 100%; }
+  .story-card {
+      min-height: 0;
+      padding: 1.55rem 1.35rem;
+      border-radius: 22px;
+  }
+  .story-eyebrow { margin-top: 1.35rem; }
+  .story-headline,
+  .story-headline.long,
+  .story-headline.very-long {
+      font-size: clamp(1.55rem, 7vw, 2rem);
+  }
+  .story-body { font-size: .95rem; }
 }
 </style>
 """
@@ -318,6 +380,8 @@ def _render_story_card(story: PaperStory) -> None:
     card = story.cards[index]
     progress = int(((index + 1) / len(story.cards)) * 100)
     card_type = re_safe(card.card_type)
+    headline_length = len(clean_text(card.headline))
+    headline_class = "very-long" if headline_length > 150 else "long" if headline_length > 95 else ""
 
     bullets = "".join(f"<li>{html.escape(item)}</li>" for item in card.bullets)
     bullets_html = f'<ul class="story-bullets">{bullets}</ul>' if bullets else ""
@@ -331,7 +395,7 @@ def _render_story_card(story: PaperStory) -> None:
         f'<div>'
         f'<div class="story-meta">{html.escape(venue_year)} · {index + 1} / {len(story.cards)}</div>'
         f'<div class="story-eyebrow">{html.escape(card.eyebrow)}</div>'
-        f'<div class="story-headline">{html.escape(card.headline)}</div>'
+        f'<div class="story-headline {headline_class}">{html.escape(card.headline)}</div>'
         f'<div class="story-body">{html.escape(clean_text(card.body))}</div>'
         f'{bullets_html}'
         f'</div>'
@@ -344,14 +408,16 @@ def _render_story_card(story: PaperStory) -> None:
     )
     st.html(card_html)
 
-    nav_left, nav_mid, nav_right = st.columns([1, 2, 1])
-    if nav_left.button("Previous", disabled=index == 0, use_container_width=True, key="story_prev"):
-        st.session_state["story_card_index"] = index - 1
-        st.rerun()
-    nav_mid.caption(f"{story.short_title} · {index + 1} of {len(story.cards)}")
-    if nav_right.button("Next", disabled=index == len(story.cards) - 1, use_container_width=True, key="story_next"):
-        st.session_state["story_card_index"] = index + 1
-        st.rerun()
+    _, nav_wrap, _ = st.columns([1, 3, 1])
+    with nav_wrap:
+        st.caption(f"{story.short_title} · {index + 1} of {len(story.cards)}")
+        nav_left, nav_right = st.columns(2)
+        if nav_left.button("Previous", disabled=index == 0, use_container_width=True, key="story_prev"):
+            st.session_state["story_card_index"] = index - 1
+            st.rerun()
+        if nav_right.button("Next", disabled=index == len(story.cards) - 1, use_container_width=True, key="story_next"):
+            st.session_state["story_card_index"] = index + 1
+            st.rerun()
 
     with st.expander("Source & provenance"):
         st.markdown(f"**Source section:** {card.source_section}")
