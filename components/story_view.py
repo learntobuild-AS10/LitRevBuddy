@@ -178,7 +178,7 @@ def _generate(parsed: ParsedPaper) -> None:
 
 
 def _handle_library_source(source: PaperSource) -> None:
-    st.markdown(f"#### {source.title}")
+    st.subheader(source.title)
     meta = " · ".join(bit for bit in [source.venue, str(source.year or ""), source.authors] if bit)
     if meta:
         st.caption(meta)
@@ -225,7 +225,8 @@ def _external_source_controls() -> None:
     external = st.session_state.get("external_story_source")
     if external:
         source = PaperSource.model_validate(external)
-        st.markdown(f"**Loaded:** {source.title}")
+        st.markdown("**Loaded paper**")
+        st.write(source.title)
         detail_bits = [source.venue, str(source.year or "")]
         st.caption(" · ".join(bit for bit in detail_bits if bit) or source.paper_url)
         col_a, col_b = st.columns(2)
@@ -272,7 +273,8 @@ def _external_source_controls() -> None:
             if parsed_dump:
                 st.session_state["uploaded_parsed_paper"] = parsed_dump
                 parsed = ParsedPaper.model_validate(parsed_dump)
-                st.markdown(f"**Parsed upload:** {parsed.source.title}")
+                st.markdown("**Parsed upload**")
+                st.write(parsed.source.title)
                 st.caption(f"{len(parsed.full_text):,} extracted characters · {len(parsed.sections)} detected sections")
                 for note in parsed.extraction_notes:
                     st.caption(note)
@@ -481,7 +483,7 @@ def render_story_view(df, vectorizer, svd, nn, vectors) -> None:
     st.divider()
     label = "Full-paper summary" if story.source_quality == "full_paper" else "Abstract-based summary"
     st.caption(f"STEP 2 · STORY · {label}")
-    st.markdown(f"### {story.title}")
+    st.subheader(story.title)
     st.write(story.one_line_summary)
     _render_story_card(story)
     _render_study_area(story)
