@@ -1,10 +1,9 @@
 name: deploy-pages
-# Re-run full deploy after Pages enablement
 
 on:
   push:
     branches:
-      - feature/github-pages-frontend
+      - main
   workflow_dispatch:
 
 permissions:
@@ -13,7 +12,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: github-pages-preview
+  group: github-pages
   cancel-in-progress: true
 
 jobs:
@@ -82,7 +81,7 @@ jobs:
 
   deploy:
     environment:
-      name: github-pages-preview
+      name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
