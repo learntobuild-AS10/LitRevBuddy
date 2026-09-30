@@ -686,7 +686,7 @@ function renderMap() {
   ctx.globalAlpha=1;
 }
 
-function normalizeGraphifyGraph(raw) {
+function normalizeNetworkGraph(raw) {
   const nodes = Array.isArray(raw?.nodes) ? raw.nodes : [];
   const edges = Array.isArray(raw?.edges) ? raw.edges : (Array.isArray(raw?.links) ? raw.links : []);
   const nodeMap = new Map(nodes.map(node => [String(node.id), {
@@ -720,7 +720,6 @@ function citationFilteredEdges() {
   const graph=state.citationGraph;
   if(!graph) return [];
   if(state.citationFilter==="all") return graph.edges;
-  if(state.citationFilter==="extracted") return graph.edges.filter(e => e.confidence.toUpperCase()==="EXTRACTED");
   return graph.edges.filter(isCitationEdge);
 }
 
@@ -878,16 +877,16 @@ async function loadPublishedCitationGraph() {
     const response=await fetch(`${DATA_ROOT}/citation-graph/graph.json`,{cache:"no-cache"});
     if(!response.ok) throw new Error("No published graph");
     const raw=await response.json();
-    state.citationGraph=normalizeGraphifyGraph(raw);
-    state.citationGraphSource="Published Graphify map";
+    state.citationGraph=normalizeNetworkGraph(raw);
+    state.citationGraphSource="Published citation map";
     if(!state.citationGraph.nodes.length){
-      $("#citationStatus").textContent="No citation graph has been published yet. Run Graphify locally, sanitize the output, and commit the published graph.";
+      $("#citationStatus").textContent="No citation graph has been published yet. Build the Semantic Scholar citation graph locally and publish the generated JSON.";
       $("#citationDetails").innerHTML='<div class="empty compact-empty">Citation graph not published yet.</div>';
       return;
     }
     renderCitationGraph();
   }catch(error){
-    $("#citationStatus").textContent="No citation graph has been published yet. Open a Graphify graph.json from your device, or publish one through the repository workflow.";
+    $("#citationStatus").textContent="No citation graph has been published yet. Build it locally from Semantic Scholar metadata, or open a generated citation graph from your device.";
     $("#citationDetails").innerHTML='<div class="empty compact-empty">Citation graph not published yet.</div>';
   }
 }
@@ -897,8 +896,8 @@ function handleCitationUpload(file) {
   reader.onload=()=>{
     try{
       const raw=JSON.parse(String(reader.result||""));
-      state.citationGraph=normalizeGraphifyGraph(raw);
-      state.citationGraphSource="Local graph.json";
+      state.citationGraph=normalizeNetworkGraph(raw);
+      state.citationGraphSource="Local citation graph";
       state.citationSelection=null;
       renderCitationGraph();
       toast("Citation graph loaded in this page only");
@@ -1021,7 +1020,7 @@ function bindGlobalUI(){
     $(".tab-btn").forEach(b=>b.classList.toggle("active",b===btn));
     $(".explore-panel").forEach(p=>p.classList.remove("active"));
     const tab=btn.dataset.exploreTab;
-    const panel=tab==="map"?"#mapPanel":tab==="citations"?"#citationsPanel":"#topicsPanel";
+    const panel=tab==="map"?"#mapPanel":tab==="citations"?"#citationsPanel":tab==="knowledge"?"#knowledgePanel":"#topicsPanel";
     $(panel).classList.add("active");
     if(tab==="map")setTimeout(renderMap,30);
     if(tab==="citations"){
