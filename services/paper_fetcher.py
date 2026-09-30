@@ -82,7 +82,7 @@ def _assert_public_host(url: str) -> None:
 
     try:
         infos = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80))
-    except socket.gaierror as exc:
+    except OSError as exc:
         raise FetchError(f"Could not resolve host: {host}") from exc
 
     for info in infos:
@@ -100,13 +100,16 @@ def _request_with_safe_redirects(url: str, *, stream: bool, timeout=(5, 25), max
     current = url
     for _ in range(max_redirects + 1):
         _assert_public_host(current)
-        response = session.get(
-            current,
-            headers={"User-Agent": USER_AGENT, "Accept": "application/pdf,text/html;q=0.9,*/*;q=0.8"},
-            timeout=timeout,
-            stream=stream,
-            allow_redirects=False,
-        )
+        try:
+            response = session.get(
+                current,
+                headers={"User-Agent": USER_AGENT, "Accept": "application/pdf,text/html;q=0.9,*/*;q=0.8"},
+                timeout=timeout,
+                stream=stream,
+                allow_redirects=False,
+            )
+        except requests.RequestException as exc:
+            raise FetchError("Could not connect to the paper host.") from exc
         if response.status_code in {301, 302, 303, 307, 308}:
             location = response.headers.get("Location")
             response.close()
@@ -137,13 +140,16 @@ def fetch_pdf_bytes(url: str, *, max_bytes: int = MAX_PDF_BYTES) -> bytes:
 
         chunks = []
         total = 0
-        for chunk in response.iter_content(chunk_size=64 * 1024):
-            if not chunk:
-                continue
-            total += len(chunk)
-            if total > max_bytes:
-                raise FetchError(f"PDF exceeds the {max_bytes // (1024 * 1024)} MB limit.")
-            chunks.append(chunk)
+        try:
+            for chunk in response.iter_content(chunk_size=64 * 1024):
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > max_bytes:
+                    raise FetchError(f"PDF exceeds the {max_bytes // (1024 * 1024)} MB limit.")
+                chunks.append(chunk)
+        except requests.RequestException as exc:
+            raise FetchError("The PDF download was interrupted.") from exc
 
         data = b"".join(chunks)
         if not data.startswith(b"%PDF") and "pdf" not in content_type:
@@ -179,11 +185,14 @@ def fetch_page_metadata(url: str) -> PaperSource:
 
         chunks = []
         total = 0
-        for chunk in response.iter_content(chunk_size=32 * 1024):
-            total += len(chunk)
-            if total > MAX_HTML_BYTES:
-                break
-            chunks.append(chunk)
+        try:
+            for chunk in response.iter_content(chunk_size=32 * 1024):
+                total += len(chunk)
+                if total > MAX_HTML_BYTES:
+                    break
+                chunks.append(chunk)
+        except requests.RequestException as exc:
+            raise FetchError("The paper page download was interrupted.") from exc
         html = b"".join(chunks).decode(response.encoding or "utf-8", errors="ignore")
         final_url = response.url
     finally:
